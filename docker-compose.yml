@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: api-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-fiap_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-fiap_password}
+      POSTGRES_DB: ${DB_NAME:-fiap_videos}
+    ports:
+      - '${DB_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - api-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-fiap_user} -d ${DB_NAME:-fiap_videos}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: api-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis-data:/data
+    networks:
+      - api-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: api-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - '${RABBITMQ_PORT:-5672}:5672'       
+      - '${RABBITMQ_MANAGEMENT_PORT:-15672}:15672'  
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - api-network
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: api-service
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-3000}
+      
+      DATABASE_URL: postgresql://${DB_USER:-fiap_user}:${DB_PASSWORD:-fiap_password}@postgres:5432/${DB_NAME:-fiap_videos}?schema=public
+      
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      
+      AWS_REGION: ${AWS_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL:-http://localhost:4000}
+      JWT_SECRET: ${JWT_SECRET}
+      
+      MAX_FPS: ${MAX_FPS:-60}
+      MAX_VIDEO_DURATION_MINUTES: ${MAX_VIDEO_DURATION_MINUTES:-10}
+      SIGNED_URL_EXPIRATION_DAYS: ${SIGNED_URL_EXPIRATION_DAYS:-7}
+    ports:
+      - '${PORT:-3000}:3000'
+    networks:
+      - api-network
+    command: sh -c "npx prisma migrate deploy && node dist/server.js"
+
+  prisma-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: api-prisma-studio
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-fiap_user}:${DB_PASSWORD:-fiap_password}@postgres:5432/${DB_NAME:-fiap_videos}?schema=public
+    ports:
+      - '5555:5555'
+    networks:
+      - api-network
+    command: npx prisma studio --port 5555 --browser none
+
+networks:
+  api-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
