@@ -1,0 +1,43 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// Enum: VideoStatus
+// ==========================================
+enum VideoStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ==========================================
+// Model: Video
+// ==========================================
+model Video {
+  id                String      @id @default(uuid())
+  jobId             String      @unique @map("job_id")
+  status            VideoStatus @default(PENDING)
+  clientId          String      @map("client_id")
+  framesPerSecond   Int         @map("frames_per_second")
+  inputUrlStorage   String      @map("input_url_storage")
+  outputUrlStorage  String      @map("output_url_storage")
+  size              BigInt
+  format            String      @default("jpg")
+  error             String?
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  @@index([clientId])
+  @@index([status])
+  @@map("videos")
+}
