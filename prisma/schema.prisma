@@ -28,16 +28,20 @@ model Video {
   jobId             String      @unique @map("job_id")
   status            VideoStatus @default(PENDING)
   clientId          String      @map("client_id")
+  email             String      // Email do cliente (vem do JWT)
   framesPerSecond   Int         @map("frames_per_second")
   inputUrlStorage   String      @map("input_url_storage")
   outputUrlStorage  String      @map("output_url_storage")
   size              BigInt
   format            String      @default("jpg")
   error             String?
+  uploadedAt        DateTime    @default(now()) @map("uploaded_at")
+  processedAt       DateTime?   @map("processed_at")
   createdAt         DateTime    @default(now()) @map("created_at")
   updatedAt         DateTime    @updatedAt @map("updated_at")
 
   @@index([clientId])
+  @@index([email])
   @@index([status])
   @@map("videos")
 }
