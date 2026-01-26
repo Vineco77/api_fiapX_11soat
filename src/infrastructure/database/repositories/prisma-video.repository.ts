@@ -1,23 +1,21 @@
-import { injectable } from 'tsyringe';
+import { injectable, inject } from 'tsyringe';
 import { Video, VideoStatus } from '@prisma/client';
 import { getPrismaClient } from '@/infrastructure/database/prisma-client';
 import type {
   IVideoRepository,
   CreateVideoData,
 } from '@/domain/repositories/video.repository.interface';
+import type { ICacheService } from '@/domain/repositories/cache.interface';
 
-/**
- * Implementação do repositório de vídeos usando Prisma
- * Performance: Queries otimizadas com índices e paginação eficiente
- */
+
 @injectable()
 export class PrismaVideoRepository implements IVideoRepository {
   private readonly prisma = getPrismaClient();
 
-  /**
-   * Cria um novo registro de vídeo
-   * Performance: Usa transação implícita do Prisma
-   */
+  constructor(
+    @inject('CacheService') private readonly cacheService: ICacheService
+  ) {}
+
   async create(data: CreateVideoData): Promise<Video> {
     try {
       const video = await this.prisma.video.create({
@@ -30,11 +28,14 @@ export class PrismaVideoRepository implements IVideoRepository {
           outputUrlStorage: data.outputUrlStorage,
           size: data.size,
           format: data.format,
-          status: VideoStatus.PENDING, // Status inicial sempre PENDING
+          status: VideoStatus.PENDING,
         },
       });
 
       console.log(`✅ Video created in DB: ${video.jobId}`);
+
+      await this.invalidateClientCache(data.email);
+
       return video;
     } catch (error) {
       console.error('❌ Error creating video in DB:', error);
@@ -44,10 +45,6 @@ export class PrismaVideoRepository implements IVideoRepository {
     }
   }
 
-  /**
-   * Busca um vídeo por jobId
-   * Performance: Usa índice único no jobId
-   */
   async findByJobId(jobId: string): Promise<Video | null> {
     try {
       const video = await this.prisma.video.findUnique({
@@ -63,10 +60,6 @@ export class PrismaVideoRepository implements IVideoRepository {
     }
   }
 
-  /**
-   * Lista vídeos de um cliente com paginação
-   * Performance: Usa índice no clientId e paginação eficiente (skip + take)
-   */
   async findByClientId(
     clientId: string,
     page: number,
@@ -75,11 +68,10 @@ export class PrismaVideoRepository implements IVideoRepository {
     try {
       const skip = (page - 1) * limit;
 
-      // Performance: Executa queries em paralelo
       const [videos, total] = await Promise.all([
         this.prisma.video.findMany({
           where: { clientId },
-          orderBy: { createdAt: 'desc' }, // Mais recentes primeiro
+          orderBy: { createdAt: 'desc' },
           skip,
           take: limit,
         }),
@@ -101,10 +93,6 @@ export class PrismaVideoRepository implements IVideoRepository {
     }
   }
 
-  /**
-   * Lista vídeos por email com paginação e filtros
-   * Performance: Usa índice no email e filtro por status (opcional)
-   */
   async findByClientEmail(
     email: string,
     skip: number,
@@ -112,18 +100,16 @@ export class PrismaVideoRepository implements IVideoRepository {
     status?: string
   ): Promise<{ videos: Video[]; total: number }> {
     try {
-      // Construir where clause dinamicamente
       const where: any = { email };
       
       if (status) {
         where.status = status.toUpperCase() as VideoStatus;
       }
 
-      // Performance: Executa queries em paralelo
       const [videos, total] = await Promise.all([
         this.prisma.video.findMany({
           where,
-          orderBy: { uploadedAt: 'desc' }, // Mais recentes primeiro
+          orderBy: { uploadedAt: 'desc' },
           skip,
           take,
         }),
@@ -145,10 +131,30 @@ export class PrismaVideoRepository implements IVideoRepository {
     }
   }
 
-  /**
-   * Atualiza o status de um vídeo
-   * Performance: Update direto com where único
-   */
+  async getEmailByJobId(jobId: string): Promise<string | null> {
+    try {
+      const video = await this.prisma.video.findUnique({
+        where: { jobId },
+        select: { email: true },
+      });
+
+      return video?.email ?? null;
+    } catch (error) {
+      console.error(`❌ Error fetching email for jobId: ${jobId}`, error);
+      return null;
+    }
+  }
+
+  private async invalidateClientCache(email: string): Promise<void> {
+    try {
+      const pattern = `videos:${email}:*`;
+      await this.cacheService.deletePattern(pattern);
+      console.log(`🗑️  Cache invalidated for pattern: ${pattern}`);
+    } catch (error) {
+      console.error(`⚠️  Failed to invalidate cache for ${email}:`, error);
+    }
+  }
+
   async updateStatus(
     jobId: string,
     status: VideoStatus,
@@ -160,11 +166,17 @@ export class PrismaVideoRepository implements IVideoRepository {
         data: {
           status,
           error: error ?? null,
-          updatedAt: new Date(), // Força atualização do timestamp
+          updatedAt: new Date(),
         },
       });
 
       console.log(`✅ Video status updated: ${jobId} -> ${status}`);
+
+      const email = await this.getEmailByJobId(jobId);
+      if (email) {
+        await this.invalidateClientCache(email);
+      }
+
       return video;
     } catch (error) {
       console.error(`❌ Error updating video status: ${jobId}`, error);
@@ -174,10 +186,6 @@ export class PrismaVideoRepository implements IVideoRepository {
     }
   }
 
-  /**
-   * Deleta um vídeo por jobId
-   * Performance: Delete direto com where único
-   */
   async delete(jobId: string): Promise<void> {
     try {
       await this.prisma.video.delete({

@@ -25,6 +25,8 @@ export interface IVideoRepository {
     status?: string
   ): Promise<{ videos: Video[]; total: number }>;
 
+  getEmailByJobId(jobId: string): Promise<string | null>;
+
   updateStatus(
     jobId: string,
     status: VideoStatus,
