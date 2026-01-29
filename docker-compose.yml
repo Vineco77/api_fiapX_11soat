@@ -102,7 +102,7 @@ services:
       - '${PORT:-3000}:3000'
     networks:
       - api-network
-    command: sh -c "npx prisma migrate deploy && node dist/server.js"
+    command: sh -c "npx prisma migrate deploy && node --expose-gc dist/server.js"
 
   prisma-studio:
     build:

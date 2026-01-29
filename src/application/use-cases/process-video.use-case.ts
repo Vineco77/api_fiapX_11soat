@@ -136,10 +136,6 @@ export class ProcessVideoUseCase {
         );
       }
 
-      input.files.forEach((file) => {
-        file.buffer = Buffer.alloc(0);
-      });
-
       console.log(`[${jobId}] ✅ Video processing completed successfully`);
 
       return new ProcessVideoResponseDTO(jobId, input.files.length);
@@ -148,6 +144,8 @@ export class ProcessVideoUseCase {
       throw new Error(
         `Failed to process videos: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
+    } finally {
+      this.cleanupBuffers(input.files, jobId);
     }
   }
 
@@ -204,5 +202,26 @@ export class ProcessVideoUseCase {
 
   private calculateTotalSize(files: UploadedFile[]): number {
     return files.reduce((total, file) => total + file.size, 0);
+  }
+
+  private cleanupBuffers(files: UploadedFile[], jobId: string): void {
+    try {
+      const totalSizeMB = this.calculateTotalSize(files) / (1024 * 1024);
+      
+      files.forEach((file) => {
+        if (file.buffer) {
+          file.buffer = Buffer.alloc(0); // Substitui por buffer vazio
+        }
+      });
+
+      if (globalThis.gc) {
+        globalThis.gc();
+        console.log(`[${jobId}] 🧹 Memory cleanup: ${totalSizeMB.toFixed(2)}MB freed (GC forced)`);
+      } else {
+        console.log(`[${jobId}] 🧹 Memory cleanup: ${totalSizeMB.toFixed(2)}MB marked for GC`);
+      }
+    } catch (cleanupError) {
+      console.warn(`[${jobId}] ⚠️  Cleanup warning:`, cleanupError);
+    }
   }
 }

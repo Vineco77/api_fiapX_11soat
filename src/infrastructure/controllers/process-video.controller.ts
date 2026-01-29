@@ -31,14 +31,7 @@ export class ProcessVideoController {
 
     const { framesPerSecond, format } = dto.getWithDefaults();
 
-    const files: UploadedFile[] = (req.files as any[]).map((file) => ({
-      fieldname: file.fieldname,
-      originalname: file.originalname,
-      encoding: file.encoding,
-      mimetype: file.mimetype,
-      buffer: file.buffer,
-      size: file.size,
-    }));
+    const files = req.files as UploadedFile[];
 
     const useCase = container.resolve(ProcessVideoUseCase);
     const result = await useCase.execute({
