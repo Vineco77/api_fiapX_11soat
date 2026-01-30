@@ -5,7 +5,7 @@ config();
 
 export const appConfig = {
   nodeEnv: process.env.NODE_ENV || 'development',
-  port: Number(process.env.PORT) || 3000,
+  port: Number(process.env.PORT) || 3001,
   apiVersion: process.env.API_VERSION || 'v1',
 
   databaseUrl: process.env.DATABASE_URL || '',
@@ -36,8 +36,8 @@ export const appConfig = {
   },
 
   auth: {
-    serviceUrl: process.env.AUTH_SERVICE_URL || 'http://localhost:4000',
     jwtSecret: process.env.JWT_SECRET || '',
+    authGate: process.env.AUTH_GATE || 'http://localhost:4000',
   },
 
   limits: {
@@ -57,13 +57,21 @@ export function validateEnvVars(): void {
     'AWS_ACCESS_KEY_ID',
     'AWS_SECRET_ACCESS_KEY',
     'AWS_S3_BUCKET',
+    'JWT_SECRET',
+    'AUTH_GATE',
   ];
 
   const missingVars = requiredVars.filter((varName) => !process.env[varName]);
 
   if (missingVars.length > 0) {
-    console.error('❌ Missing required environment variables:');
+    console.error('Missing required environment variables:');
     missingVars.forEach((varName) => console.error(`   - ${varName}`));
     process.exit(1);
   }
 }
+
+export const env = {
+  ...appConfig,
+  JWT_SECRET: appConfig.auth.jwtSecret,
+  AUTH_GATE: appConfig.auth.authGate,
+};

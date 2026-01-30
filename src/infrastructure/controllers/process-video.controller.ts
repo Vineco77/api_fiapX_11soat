@@ -5,6 +5,7 @@ import { validate } from 'class-validator';
 import { ProcessVideoUseCase } from '@/application/use-cases/process-video.use-case';
 import { ProcessVideoDTO } from '@/domain/dtos/process-video.dto';
 import { ValidationError } from '@/infrastructure/middlewares/errors';
+import { getAuthenticatedUser } from '@/infrastructure/middlewares';
 import type { UploadedFile } from '@/domain/repositories/s3-storage.interface';
 
 export class ProcessVideoController {
@@ -26,8 +27,7 @@ export class ProcessVideoController {
       throw new ValidationError('Validation failed', errorMessages);
     }
 
-    const clientId = (req as any).user?.clientId || 'mock-client-id';
-    const email = (req as any).user?.email || 'mock@example.com';
+    const user = getAuthenticatedUser(req);
 
     const { framesPerSecond, format } = dto.getWithDefaults();
 
@@ -38,8 +38,8 @@ export class ProcessVideoController {
       files,
       framesPerSecond,
       format,
-      clientId,
-      email,
+      clientId: user.clientId,
+      email: user.email,
     });
 
     res.status(200).json(result);

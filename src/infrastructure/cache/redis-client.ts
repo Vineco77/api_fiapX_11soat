@@ -28,30 +28,30 @@ class RedisClientSingleton {
         connectTimeout: 10000,
         reconnectStrategy: (retries) => {
           if (retries > 10) {
-            console.error('❌ Redis: Max reconnection attempts reached');
+            console.error('Redis: Max reconnection attempts reached');
             return new Error('Max reconnection attempts reached');
           }
-          const delay = Math.min(retries * 100, 3000);
-          console.log(`🔄 Redis: Reconnecting... (attempt ${retries}, delay ${delay}ms)`);
+          const delay = Math.min(retries * 100, 3001);
+          console.log(`Redis: Reconnecting... (attempt ${retries}, delay ${delay}ms)`);
           return delay;
         },
       },
     });
 
     client.on('error', (err) => {
-      console.error('❌ Redis Client Error:', err);
+      console.error('Redis Client Error:', err);
     });
 
     client.on('connect', () => {
-      console.log('🔗 Redis: Connected');
+      console.log('Redis: Connected');
     });
 
     client.on('ready', () => {
-      console.log('✅ Redis: Ready');
+      console.log('Redis: Ready');
     });
 
     client.on('reconnecting', () => {
-      console.log('🔄 Redis: Reconnecting...');
+      console.log('Redis: Reconnecting...');
     });
 
     await client.connect();

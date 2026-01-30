@@ -5,6 +5,7 @@ import { validate } from 'class-validator';
 import { GetVideosUseCase } from '@/application/use-cases/get-videos.use-case';
 import { GetVideosQueryDTO } from '@/domain/dtos/get-videos-query.dto';
 import { ValidationError } from '@/infrastructure/middlewares/errors';
+import { getAuthenticatedUser } from '@/infrastructure/middlewares';
 
 
 export class GetVideosController {
@@ -20,12 +21,12 @@ export class GetVideosController {
       throw new ValidationError('Query validation failed', errorMessages);
     }
 
-    const email = (req as any).user?.email || 'mock@example.com';
+    const user = getAuthenticatedUser(req);
 
     const { page, limit, status } = queryDto.getWithDefaults();
     const useCase = container.resolve(GetVideosUseCase);
     const result = await useCase.execute({
-      email,
+      email: user.email,
       page,
       limit,
       status,

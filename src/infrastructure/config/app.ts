@@ -1,9 +1,9 @@
 import express, { type Application, type Request, type Response } from 'express';
-import 'reflect-metadata'; // Necessário para TSyringe
+import 'reflect-metadata';
 import { healthRoutes } from '@/infrastructure/routes/health.routes';
 import { videoRoutes } from '@/infrastructure/routes/video.routes';
 import { errorHandler } from '@/infrastructure/middlewares/errors';
-import './container'; // Registra injeções de dependência
+import './container';
 
 export class App {
   public app: Application;
@@ -21,7 +21,6 @@ export class App {
   }
 
   private setupRoutes(): void {
-    // Root
     this.app.get('/', (_req: Request, res: Response) => {
       res.status(200).json({
         message: 'API de Processamento de Vídeos - FIAP 11SOAT',
@@ -33,13 +32,10 @@ export class App {
       });
     });
 
-    // Health check
     this.app.use('/health', healthRoutes);
 
-    // Video routes
     this.app.use('/videos', videoRoutes);
 
-    // 404 - Not Found (deve ser a última rota)
     this.app.use((_req: Request, res: Response) => {
       res.status(404).json({
         error: 'Route not found',
@@ -48,12 +44,11 @@ export class App {
   }
 
   private setupErrorHandling(): void {
-    // Error handler deve ser o ÚLTIMO middleware
     this.app.use(errorHandler);
   }
 
   public listen(): void {
-    const port = Number(process.env.PORT) || 3000;
+    const port = Number(process.env.PORT) || 3001;
     this.app.listen(port, () => {
       console.log(`🚀 Server is running on port ${port}`);
       console.log(`📦 Environment: ${process.env.NODE_ENV || 'development'}`);
