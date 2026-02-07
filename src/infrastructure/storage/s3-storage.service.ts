@@ -8,6 +8,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { injectable } from 'tsyringe';
 import { getS3Client } from '@/infrastructure/config/s3-client';
 import { appConfig } from '@/infrastructure/config/env';
+import { logS3Operation } from '@/infrastructure/monitoring';
 import type { IS3StorageService } from '@/domain/repositories/s3-storage.interface';
 
 @injectable()
@@ -16,6 +17,7 @@ export class S3StorageService implements IS3StorageService {
   private readonly bucket = appConfig.aws.s3Bucket;
 
   async uploadFile(file: Buffer, key: string, contentType: string): Promise<void> {
+    const startTime = Date.now();
     try {
       const command = new PutObjectCommand({
         Bucket: this.bucket,
@@ -27,9 +29,31 @@ export class S3StorageService implements IS3StorageService {
       });
 
       await this.s3Client.send(command);
-      console.log(`✅ File uploaded to S3: ${key}`);
+      
+      const duration = Date.now() - startTime;
+      logS3Operation({
+        operation: 's3.upload',
+        bucket: this.bucket,
+        key,
+        duration,
+        size: file.length,
+        success: true,
+      });
+      
+      console.log(`File uploaded to S3: ${key}`);
     } catch (error) {
-      console.error(`❌ Error uploading file to S3: ${key}`, error);
+      const duration = Date.now() - startTime;
+      logS3Operation({
+        operation: 's3.upload',
+        bucket: this.bucket,
+        key,
+        duration,
+        size: file.length,
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      
+      console.error(`Error uploading file to S3: ${key}`, error);
       throw new Error(`Failed to upload file to S3: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -46,10 +70,10 @@ export class S3StorageService implements IS3StorageService {
     try {
       const s3Uri = `s3://${this.bucket}/${prefix}`;
       
-      console.log(`✅ Generated S3 URI: ${s3Uri}`);
+      console.log(`Generated S3 URI: ${s3Uri}`);
       return s3Uri;
     } catch (error) {
-      console.error(`❌ Error generating signed URL for prefix: ${prefix}`, error);
+      console.error(`Error generating signed URL for prefix: ${prefix}`, error);
       throw new Error(`Failed to generate signed URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -65,15 +89,16 @@ export class S3StorageService implements IS3StorageService {
         expiresIn,
       });
 
-      console.log(`✅ Generated signed URL for file: ${key}`);
+      console.log(`Generated signed URL for file: ${key}`);
       return signedUrl;
     } catch (error) {
-      console.error(`❌ Error generating signed URL for file: ${key}`, error);
+      console.error(`Error generating signed URL for file: ${key}`, error);
       throw new Error(`Failed to generate signed URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   async deleteFolder(prefix: string): Promise<void> {
+    const startTime = Date.now();
     try {
       const listCommand = new ListObjectsV2Command({
         Bucket: this.bucket,
@@ -83,7 +108,15 @@ export class S3StorageService implements IS3StorageService {
       const listedObjects = await this.s3Client.send(listCommand);
 
       if (!listedObjects.Contents || listedObjects.Contents.length === 0) {
-        console.log(`⚠️ No objects found to delete with prefix: ${prefix}`);
+        console.log(`No objects found to delete with prefix: ${prefix}`);
+        const duration = Date.now() - startTime;
+        logS3Operation({
+          operation: 's3.delete',
+          bucket: this.bucket,
+          prefix,
+          duration,
+          success: true,
+        });
         return;
       }
 
@@ -96,13 +129,33 @@ export class S3StorageService implements IS3StorageService {
       });
 
       await this.s3Client.send(deleteCommand);
-      console.log(`✅ Deleted ${listedObjects.Contents.length} objects from S3: ${prefix}`);
+      
+      const duration = Date.now() - startTime;
+      logS3Operation({
+        operation: 's3.delete',
+        bucket: this.bucket,
+        prefix,
+        duration,
+        success: true,
+      });
+      
+      console.log(`Deleted ${listedObjects.Contents.length} objects from S3: ${prefix}`);
 
       if (listedObjects.IsTruncated) {
         await this.deleteFolder(prefix);
       }
     } catch (error) {
-      console.error(`❌ Error deleting folder from S3: ${prefix}`, error);
+      const duration = Date.now() - startTime;
+      logS3Operation({
+        operation: 's3.delete',
+        bucket: this.bucket,
+        prefix,
+        duration,
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      
+      console.error(`Error deleting folder from S3: ${prefix}`, error);
       throw new Error(`Failed to delete folder from S3: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -116,9 +169,9 @@ export class S3StorageService implements IS3StorageService {
       );
 
       await Promise.all(uploadPromises);
-      console.log(`✅ Successfully uploaded ${files.length} files in parallel`);
+      console.log(`Successfully uploaded ${files.length} files in parallel`);
     } catch (error) {
-      console.error('❌ Error uploading multiple files', error);
+      console.error('Error uploading multiple files', error);
       throw new Error(`Failed to upload files: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -133,6 +186,7 @@ export class S3StorageService implements IS3StorageService {
    * @param expiresIn - Tempo de expiração em segundos (default: 3600 = 1 hora)
    */
   async getPresignedFolderUrl(prefix: string, expiresIn: number = 3600): Promise<string> {
+    const startTime = Date.now();
     try {
       const command = new ListObjectsV2Command({
         Bucket: this.bucket,
@@ -143,10 +197,29 @@ export class S3StorageService implements IS3StorageService {
         expiresIn,
       });
 
-      console.log(`✅ Generated presigned folder URL for: ${prefix}`);
+      const duration = Date.now() - startTime;
+      logS3Operation({
+        operation: 's3.getPresignedFolderUrl',
+        bucket: this.bucket,
+        prefix,
+        duration,
+        success: true,
+      });
+
+      console.log(`Generated presigned folder URL for: ${prefix}`);
       return signedUrl;
     } catch (error) {
-      console.error(`❌ Error generating presigned folder URL: ${prefix}`, error);
+      const duration = Date.now() - startTime;
+      logS3Operation({
+        operation: 's3.getPresignedFolderUrl',
+        bucket: this.bucket,
+        prefix,
+        duration,
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+      
+      console.error(`Error generating presigned folder URL: ${prefix}`, error);
       throw new Error(`Failed to generate presigned folder URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
