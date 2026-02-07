@@ -19,6 +19,8 @@ Sistema de processamento de vídeos com extração de frames, composto por 4 ser
 - **Cache:** Redis
 - **Fila:** RabbitMQ
 - **Storage:** AWS S3
+- **Monitoring:** Elasticsearch + Kibana
+- **Logging:** Pino (performance optimized)
 - **DI Container:** TSyringe
 - **Validação:** class-validator
 
@@ -44,7 +46,8 @@ src/
 │   ├── storage/         # Cliente S3
 │   ├── queue/           # RabbitMQ
 │   ├── cache/           # Redis
-│   ├── middlewares/     # Auth, validation, error handling
+│   ├── monitoring/      # Elasticsearch, Pino logger, ILM
+│   ├── middlewares/     # Auth, validation, error handling, logging
 │   └── routes/          # Rotas Express
 │
 └── server.ts            # Arquivo de entrada
@@ -94,6 +97,60 @@ npm start            # Executa versão compilada
 npm run lint         # Verifica código com ESLint
 npm run lint:fix     # Corrige automaticamente problemas do ESLint
 npm run format       # Formata código com Prettier
+npm run setup:ilm    # Configura ILM no Elasticsearch (retenção 7 dias)
+```
+
+## 📊 Monitoramento
+
+### Elasticsearch + Kibana
+
+Este projeto utiliza **Pino** (logger de alta performance) com Elasticsearch para monitoramento completo:
+
+**Características:**
+- ⚡ **Performance:** ~2-5% overhead (Pino é 10x mais rápido que Winston)
+- 📈 **Logs estruturados:** JSON nativo para fácil query
+- 🔍 **Rastreamento:** TraceId único em cada request
+- 🗑️ **Retenção automática:** Logs deletados após 7 dias (ILM)
+
+**O que é logado:**
+- ✅ HTTP requests/responses (método, URL, status, duração)
+- ✅ Operações S3 (upload, delete, presigned URLs)
+- ✅ Mensagens RabbitMQ (publish/consume)
+- ✅ Queries PostgreSQL (Prisma middleware)
+- ✅ Operações Redis (cache hit/miss)
+- ✅ Erros completos (stack trace, context)
+
+**Acessar Kibana:**
+```
+http://localhost:5601
+```
+
+**Setup inicial do ILM (Index Lifecycle Management):**
+```bash
+# Executar após subir Elasticsearch
+npm run setup:ilm
+```
+
+**Queries úteis no Kibana:**
+
+```
+# Todos os requests HTTP
+type: "http.request"
+
+# Erros apenas
+level: "error"
+
+# Cache misses
+type: "cache.redis" AND hit: false
+
+# Requests lentos (> 1 segundo)
+duration > 1000 AND type: "http.response"
+
+# Requests de um cliente específico
+clientId: "uuid-do-cliente"
+
+# Rastrear request completo por traceId
+traceId: "uuid-do-trace"
 ```
 
 ## 🔌 Endpoints da API

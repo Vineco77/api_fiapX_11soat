@@ -58,6 +58,50 @@ services:
       timeout: 5s
       retries: 5
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: api-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - cluster.name=api-fiapx-cluster
+      - node.name=api-node-1
+    ports:
+      - '${ELASTICSEARCH_PORT:-9200}:9200'
+      - '9300:9300'
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - api-network
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:9200/_cluster/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: api-kibana
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_NAME=api-kibana
+      - SERVER_HOST=0.0.0.0
+    ports:
+      - '${KIBANA_PORT:-5601}:5601'
+    networks:
+      - api-network
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:5601/api/status || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   api:
     build:
@@ -72,6 +116,8 @@ services:
       redis:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     environment:
       NODE_ENV: ${NODE_ENV:-production}
@@ -94,6 +140,10 @@ services:
       
       AUTH_GATE: ${AUTH_GATE}
       JWT_SECRET: ${JWT_SECRET}
+      MOCK_AUTH: ${MOCK_AUTH:-false}
+      
+      ELASTICSEARCH_HOST: elasticsearch
+      ELASTICSEARCH_PORT: 9200
       
       MAX_FPS: ${MAX_FPS:-60}
       MAX_VIDEO_DURATION_MINUTES: ${MAX_VIDEO_DURATION_MINUTES:-10}
@@ -102,6 +152,12 @@ services:
       - '${PORT:-3001}:3001'
     networks:
       - api-network
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -f http://localhost:3001/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     command: sh -c "npx prisma migrate deploy && node --expose-gc dist/server.js"
 
   prisma-studio:
@@ -132,4 +188,6 @@ volumes:
   redis-data:
     driver: local
   rabbitmq-data:
+    driver: local
+  elasticsearch-data:
     driver: local

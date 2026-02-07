@@ -18,6 +18,18 @@ export async function authMiddleware(
   next: NextFunction
 ): Promise<void> {
   try {
+    if (env.MOCK_AUTH) {
+      const mockUser: AuthenticatedUserDTO = {
+        email: 'mock@test.com',
+        clientId: 'mock-client-id-123',
+      };
+      
+      req.user = mockUser;
+      console.log('[AUTH] Using MOCK authentication:', mockUser);
+      next();
+      return;
+    }
+
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {

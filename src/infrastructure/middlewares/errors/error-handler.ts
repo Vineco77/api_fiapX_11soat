@@ -1,13 +1,29 @@
 import type { Request, Response, NextFunction } from 'express';
 import { AppError } from './app-error';
+import { logError } from '@/infrastructure/monitoring';
 
 export function errorHandler(
   error: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
+  const traceId = (req as any).traceId;
+  const user = (req as any).user;
+  const url = req.originalUrl || req.url;
+
   if (error instanceof AppError) {
+    // Log de erros conhecidos (AppError)
+    logError({
+      traceId,
+      errorType: error.constructor.name,
+      errorMessage: error.message,
+      statusCode: error.statusCode,
+      clientId: user?.clientId,
+      url,
+      stack: error.stack,
+    });
+
     res.status(error.statusCode).json({
       status: 'error',
       message: error.message,
@@ -16,6 +32,16 @@ export function errorHandler(
     });
     return;
   }
+
+  logError({
+    traceId,
+    errorType: 'UnexpectedError',
+    errorMessage: error.message,
+    statusCode: 500,
+    clientId: user?.clientId,
+    url,
+    stack: error.stack,
+  });
 
   console.error('❌ Unexpected error:', error);
 

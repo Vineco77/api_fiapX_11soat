@@ -3,6 +3,14 @@ import { container } from 'tsyringe';
 import { HealthCheckUseCase } from '@/application/use-cases/health-check.use-case';
 
 export class HealthController {
+  async basic(_req: Request, res: Response): Promise<Response> {
+    return res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      service: 'api-fiapx-11soat',
+    });
+  }
+
   async detailed(_req: Request, res: Response): Promise<Response> {
     const healthCheckUseCase = container.resolve(HealthCheckUseCase);
 

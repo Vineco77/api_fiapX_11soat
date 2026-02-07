@@ -38,6 +38,14 @@ export const appConfig = {
   auth: {
     jwtSecret: process.env.JWT_SECRET || '',
     authGate: process.env.AUTH_GATE || 'http://localhost:4000',
+    mockAuth: process.env.MOCK_AUTH === 'false',
+  },
+
+  elasticsearch: {
+    host: process.env.ELASTICSEARCH_HOST || 'localhost',
+    port: Number(process.env.ELASTICSEARCH_PORT) || 9200,
+    url: process.env.ELASTICSEARCH_URL || `http://${process.env.ELASTICSEARCH_HOST || 'localhost'}:${process.env.ELASTICSEARCH_PORT || 9200}`,
+    index: process.env.ELASTICSEARCH_INDEX || 'api-fiapx-logs',
   },
 
   limits: {
@@ -74,4 +82,5 @@ export const env = {
   ...appConfig,
   JWT_SECRET: appConfig.auth.jwtSecret,
   AUTH_GATE: appConfig.auth.authGate,
+  MOCK_AUTH: appConfig.auth.mockAuth,
 };
