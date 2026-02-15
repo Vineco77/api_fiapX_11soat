@@ -33,13 +33,7 @@ class RabbitMQClient {
     try {
       console.log('[RabbitMQ] Connecting to RabbitMQ...');
 
-      const connectionOptions: amqp.Options.Connect = {};
-      
-      if (appConfig.rabbitmq.url.startsWith('amqps://')) {
-        console.log('[RabbitMQ] Using TLS connection (AmazonMQ)');
-      }
-
-      const conn = await amqp.connect(appConfig.rabbitmq.url, connectionOptions);
+      const conn = await amqp.connect(appConfig.rabbitmq.url);
       this.connection = conn as any;
 
       conn.on('error', (err: Error) => {
