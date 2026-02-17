@@ -24,7 +24,6 @@ export const appConfig = {
     url: process.env.RABBITMQ_URL || `amqp://${process.env.RABBITMQ_USER || 'guest'}:${process.env.RABBITMQ_PASSWORD || 'guest'}@${process.env.RABBITMQ_HOST || 'localhost'}:${process.env.RABBITMQ_PORT || 5672}`,
     queues: {
       videoProcessing: process.env.RABBITMQ_QUEUE_PROCESSING || 'video.processing',
-      videoCompleted: process.env.RABBITMQ_QUEUE_COMPLETED || 'video.completed',
     },
   },
 

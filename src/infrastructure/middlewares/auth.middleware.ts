@@ -21,6 +21,23 @@ export async function authMiddleware(
   const traceId = (req as any).id || 'unknown';
   
   try {
+    if (env.MOCK_AUTH) {
+      req.user = {
+        email: 'mock-user@fiapx.com',
+        clientId: 'mock-client-id-123',
+      };
+      
+      logger.warn({
+        traceId,
+        tag: 'auth.middleware',
+        mockUser: req.user,
+        msg: '⚠️ MOCK_AUTH enabled - bypassing authentication'
+      });
+      
+      next();
+      return;
+    }
+    
     logger.info({
       traceId,
       tag: 'auth.middleware',

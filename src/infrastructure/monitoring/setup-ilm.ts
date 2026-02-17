@@ -1,11 +1,6 @@
 import { Client } from '@elastic/elasticsearch';
 import { appConfig } from '@/infrastructure/config/env';
 
-/**
- * Configura ILM (Index Lifecycle Management) no Elasticsearch
- * 
- * Define política de retenção de 7 dias para logs
- */
 export async function setupElasticsearchILM(): Promise<void> {
   const client = new Client({
     node: appConfig.elasticsearch.url,
@@ -90,7 +85,7 @@ export async function setupElasticsearchILM(): Promise<void> {
     const indexExists = await client.indices.exists({ index: initialIndex });
 
     if (indexExists) {
-      console.log(`ℹ️  Initial index "${initialIndex}" already exists`);
+      console.log(`Initial index "${initialIndex}" already exists`);
     } else {
       console.log(`[Elasticsearch] Creating initial index "${initialIndex}"...`);
       await client.indices.create({
@@ -118,11 +113,11 @@ export async function setupElasticsearchILM(): Promise<void> {
 if (require.main === module) {
   void setupElasticsearchILM()
     .then(() => {
-      console.log('✅ ILM setup finished');
+      console.log('ILM setup finished');
       process.exit(0);
     })
     .catch((error: Error) => {
-      console.error('❌ ILM setup failed:', error);
+      console.error('ILM setup failed:', error);
       process.exit(1);
     });
 }

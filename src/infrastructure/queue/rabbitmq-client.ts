@@ -60,7 +60,7 @@ class RabbitMQClient {
 
       await this.assertQueues();
 
-      console.log('✅ [RabbitMQ] Connected successfully');
+      console.log('[RabbitMQ] Connected successfully');
 
       this.isConnecting = false;
       return ch;
@@ -81,17 +81,13 @@ class RabbitMQClient {
       throw new Error('Channel not available');
     }
 
-    const { videoProcessing, videoCompleted } = appConfig.rabbitmq.queues;
+    const { videoProcessing } = appConfig.rabbitmq.queues;
 
     await this.channel.assertQueue(videoProcessing, {
       durable: true,
     });
 
-    await this.channel.assertQueue(videoCompleted, {
-      durable: true,
-    });
-
-    console.log(`[RabbitMQ] Queues asserted: ${videoProcessing}, ${videoCompleted}`);
+    console.log(`[RabbitMQ] Queue asserted: ${videoProcessing}`);
   }
 
   public async getChannel(): Promise<amqp.Channel> {
