@@ -1,10 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { logDatabaseOperation } from '@/infrastructure/monitoring';
 
-/**
- * Singleton do Prisma Client com Extension de Logging
- * Performance: Evita múltiplas instâncias e gerencia pool de conexões
- */
 class PrismaClientSingleton {
   private static instance: PrismaClient | null = null;
 
@@ -60,7 +56,7 @@ class PrismaClientSingleton {
         },
       }) as unknown as PrismaClient;
 
-      console.log('✅ Prisma Client initialized with logging extension');
+      console.log('Prisma Client initialized with logging extension');
     }
 
     return PrismaClientSingleton.instance;
@@ -71,7 +67,7 @@ class PrismaClientSingleton {
     if (PrismaClientSingleton.instance) {
       await PrismaClientSingleton.instance.$disconnect();
       PrismaClientSingleton.instance = null;
-      console.log('🔌 Prisma Client disconnected');
+      console.log('Prisma Client disconnected');
     }
   }
 }
