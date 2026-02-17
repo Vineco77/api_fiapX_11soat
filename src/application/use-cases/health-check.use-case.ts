@@ -145,7 +145,6 @@ export class HealthCheckUseCase {
       const authGateUrl = appConfig.auth.authGate;
       const healthUrl = `${authGateUrl}/healthAPI`;
       
-      // Verifica apenas se o Auth Service está respondendo (conectividade)
       const response = await axios.get(healthUrl, {
         timeout: 5000,
       });
