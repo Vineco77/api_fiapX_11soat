@@ -1,48 +1,55 @@
-import { Video, VideoStatus } from '@prisma/client';
+import { Video } from '../entities/video.entity';
+import { VideoStatus } from '@prisma/client';
 
 export interface IVideoRepository {
+  /**
+   * Cria um novo Vídeo no banco de dados
+   */
   create(data: CreateVideoData): Promise<Video>;
 
-  findByJobId(jobId: string): Promise<Video | null>;
-
-  findByClientId(
-    clientId: string,
-    page: number,
-    limit: number
-  ): Promise<{ videos: Video[]; total: number }>;
+  /**
+   * Cria múltiplos vídeos de uma vez
+   */
+  createMany(videos: CreateVideoData[]): Promise<Video[]>;
 
   /**
-   * Lista vídeos de um cliente por email com paginação e filtros
-   * @param email - Email do cliente (vem do JWT)
-   * @param skip - Número de registros a pular (para paginação)
-   * @param take - Número de registros a retornar
-   * @param status - Filtro opcional por status
+   * Busca um Vídeo pelo ID
    */
-  findByClientEmail(
-    email: string,
-    skip: number,
-    take: number,
-    status?: string
-  ): Promise<{ videos: Video[]; total: number }>;
+  findById(id: string): Promise<Video | null>;
 
-  getEmailByJobId(jobId: string): Promise<string | null>;
+  /**
+   * Busca todos os vídeos de um Processamento
+   */
+  findByProcessamentoId(processamentoId: string): Promise<Video[]>;
 
+  /**
+   * Atualiza o status de um vídeo específico
+   */
   updateStatus(
-    jobId: string,
+    videoId: string,
     status: VideoStatus,
-    error?: string
+    error?: string,
+    processedAt?: Date
   ): Promise<Video>;
 
-  delete(jobId: string): Promise<void>;
+  /**
+   * Deleta um vídeo específico
+   */
+  delete(videoId: string): Promise<void>;
+
+  /**
+   * Deleta todos os vídeos de um Processamento
+   */
+  deleteByProcessamentoId(processamentoId: string): Promise<void>;
 }
 
 export interface CreateVideoData {
-  jobId: string;
-  clientId: string;
-  email: string;
-  framesPerSecond: number;
+  id?: string; // ID opcional - se não fornecido, Prisma gera automaticamente
+  fileName: string;
+  fileFormat: string;
+  processamentoId: string;
   inputUrlStorage: string;
   outputUrlStorage: string;
   size: bigint;
-  format: string;
+  status?: VideoStatus;
 }
