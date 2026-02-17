@@ -2,6 +2,10 @@ import { injectable } from 'tsyringe';
 import { PrismaClient } from '@prisma/client';
 import Redis from 'ioredis';
 import amqp from 'amqplib';
+import axios from 'axios';
+import { HeadBucketCommand } from '@aws-sdk/client-s3';
+import { getS3Client } from '@/infrastructure/config/s3-client';
+import { appConfig } from '@/infrastructure/config/env';
 
 interface HealthCheckResult {
   status: 'healthy' | 'degraded' | 'unhealthy';
@@ -10,6 +14,8 @@ interface HealthCheckResult {
     postgres: ServiceStatus;
     redis: ServiceStatus;
     rabbitmq: ServiceStatus;
+    s3: ServiceStatus;
+    auth: ServiceStatus;
   };
   uptime: number;
 }
@@ -22,8 +28,10 @@ interface ServiceStatus {
 
 @injectable()
 export class HealthCheckUseCase {
-  private prisma: PrismaClient;
-  private redis: Redis;
+  private readonly prisma: PrismaClient;
+  private readonly redis: Redis;
+  private readonly s3Client = getS3Client();
+  private readonly bucket = appConfig.aws.s3Bucket;
 
   constructor() {
     this.prisma = new PrismaClient();
@@ -36,16 +44,20 @@ export class HealthCheckUseCase {
   }
 
   async execute(): Promise<HealthCheckResult> {
-    const [postgresStatus, redisStatus, rabbitmqStatus] = await Promise.all([
+    const [postgresStatus, redisStatus, rabbitmqStatus, s3Status, authStatus] = await Promise.all([
       this.checkPostgres(),
       this.checkRedis(),
       this.checkRabbitMQ(),
+      this.checkS3(),
+      this.checkAuthService(),
     ]);
 
     const services = {
       postgres: postgresStatus,
       redis: redisStatus,
       rabbitmq: rabbitmqStatus,
+      s3: s3Status,
+      auth: authStatus,
     };
 
     const status = this.determineOverallStatus(services);
@@ -105,6 +117,61 @@ export class HealthCheckUseCase {
       return {
         status: 'error',
         error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  private async checkS3(): Promise<ServiceStatus> {
+    const start = Date.now();
+    try {
+      const command = new HeadBucketCommand({
+        Bucket: this.bucket,
+      });
+      
+      await this.s3Client.send(command);
+      const responseTime = Date.now() - start;
+      return { status: 'ok', responseTime };
+    } catch (error) {
+      return {
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error S3',
+      };
+    }
+  }
+
+  private async checkAuthService(): Promise<ServiceStatus> {
+    const start = Date.now();
+    try {
+      const authGateUrl = appConfig.auth.authGate;
+      const healthUrl = `${authGateUrl}/healthAPI`;
+      
+      // Verifica apenas se o Auth Service está respondendo (conectividade)
+      const response = await axios.get(healthUrl, {
+        timeout: 5000,
+      });
+
+      const responseTime = Date.now() - start;
+      
+      if (response.status === 200) {
+        return { status: 'ok', responseTime };
+      }
+      
+      return {
+        status: 'error',
+        error: `Unexpected status code: ${response.status}`,
+      };
+    } catch (error: any) {
+      let errorMessage = 'Unknown error';
+      
+      if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+        errorMessage = 'Auth Service unavailable';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      return {
+        status: 'error',
+        error: errorMessage,
       };
     }
   }

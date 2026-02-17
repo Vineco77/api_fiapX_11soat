@@ -22,6 +22,7 @@ import {
   LimitExceededError,
   QueueUnavailableError,
 } from '@/infrastructure/middlewares/errors';
+import { logger } from '@/infrastructure/monitoring/logger.service';
 
 export interface ProcessVideoInput {
   files: UploadedFile[];
@@ -31,22 +32,6 @@ export interface ProcessVideoInput {
   email: string;
 }
 
-/**
- * Use Case: Processar upload de vídeos
- * 
- * Responsabilidades:
- * 1. Validar arquivos recebidos
- * 2. Gerar jobId único
- * 3. Upload paralelo para S3
- * 4. Gerar URLs assinadas das pastas
- * 5. Criar registro no BD
- * 6. Retornar resposta ao cliente
- * 
- * Performance:
- * - Upload paralelo de múltiplos vídeos
- * - Validações antes de operações custosas
- * - Cleanup de memória após upload
- */
 @injectable()
 export class ProcessVideoUseCase {
   constructor(
@@ -62,11 +47,24 @@ export class ProcessVideoUseCase {
     this.validateInput(input);
 
     const jobId = uuidv4();
-    console.log(`[${jobId}] Starting video processing`);
+    const traceId = jobId;
+    
+    logger.info({
+      traceId,
+      tag: 'process-video.use-case',
+      jobId,
+      msg: 'processVideoUseCase_001'
+    });
 
     try {
       const totalSize = this.calculateTotalSize(input.files);
-      console.log(`[${jobId}] Total size: ${totalSize} bytes`);
+      logger.info({
+        traceId,
+        tag: 'process-video.use-case',
+        totalSize,
+        totalSizeMB: (totalSize / (1024 * 1024)).toFixed(2),
+        msg: 'processVideoUseCase_002'
+      });
 
       const uploadTasks = input.files.map((file) => {
         const sanitizedFilename = sanitizeFilename(file.originalname);
@@ -79,7 +77,12 @@ export class ProcessVideoUseCase {
         };
       });
 
-      console.log(`[${jobId}] Uploading ${input.files.length} videos to S3...`);
+      logger.info({
+        traceId,
+        tag: 'process-video.use-case',
+        filesCount: input.files.length,
+        msg: 'processVideoUseCase_003'
+      });
       await this.s3Storage.uploadMultipleFiles(uploadTasks);
 
       const expirationSeconds =
@@ -96,7 +99,13 @@ export class ProcessVideoUseCase {
         ),
       ]);
 
-      console.log(`[${jobId}] URLs generated - Input: ${inputUrlStorage}`);
+      logger.info({
+        traceId,
+        tag: 'process-video.use-case',
+        inputUrlStorage,
+        outputUrlStorage,
+        msg: 'processVideoUseCase_004'
+      });
 
       await this.videoRepository.create({
         jobId,
@@ -120,9 +129,18 @@ export class ProcessVideoUseCase {
         };
 
         await this.queueRepository.publishVideoProcessing(message);
-        console.log(`[${jobId}] Message published to RabbitMQ`);
+        logger.info({
+          traceId,
+          tag: 'process-video.use-case',
+          msg: 'processVideoUseCase_005'
+        });
       } catch (queueError) {
-        console.error(`[${jobId}] ❌ Failed to publish to RabbitMQ:`, queueError);
+        logger.error({
+          traceId,
+          tag: 'process-video.use-case',
+          errorMessage: queueError instanceof Error ? queueError.message : 'Unknown error',
+          msg: 'processVideoUseCase_006'
+        });
         
         const errorMessage = queueError instanceof Error ? queueError.message : 'Unknown error';
         await this.videoRepository.updateStatus(
@@ -136,16 +154,26 @@ export class ProcessVideoUseCase {
         );
       }
 
-      console.log(`[${jobId}] ✅ Video processing completed successfully`);
+      logger.info({
+        traceId,
+        tag: 'process-video.use-case',
+        msg: 'processVideoUseCase_007'
+      });
 
       return new ProcessVideoResponseDTO(jobId, input.files.length);
     } catch (error) {
-      console.error(`[${jobId}] ❌ Error processing videos:`, error);
+      logger.error({
+        traceId,
+        tag: 'process-video.use-case',
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        msg: 'processVideoUseCase_008'
+      });
       throw new Error(
         `Failed to process videos: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     } finally {
-      this.cleanupBuffers(input.files, jobId);
+      this.cleanupBuffers(input.files, traceId);
     }
   }
 
@@ -204,7 +232,7 @@ export class ProcessVideoUseCase {
     return files.reduce((total, file) => total + file.size, 0);
   }
 
-  private cleanupBuffers(files: UploadedFile[], jobId: string): void {
+  private cleanupBuffers(files: UploadedFile[], traceId: string): void {
     try {
       const totalSizeMB = this.calculateTotalSize(files) / (1024 * 1024);
       
@@ -216,12 +244,29 @@ export class ProcessVideoUseCase {
 
       if (globalThis.gc) {
         globalThis.gc();
-        console.log(`[${jobId}] 🧹 Memory cleanup: ${totalSizeMB.toFixed(2)}MB freed (GC forced)`);
+        logger.info({
+          traceId,
+          tag: 'process-video.use-case',
+          totalSizeMB: totalSizeMB.toFixed(2),
+          gcForced: true,
+          msg: 'processVideoUseCase_009'
+        });
       } else {
-        console.log(`[${jobId}] 🧹 Memory cleanup: ${totalSizeMB.toFixed(2)}MB marked for GC`);
+        logger.info({
+          traceId,
+          tag: 'process-video.use-case',
+          totalSizeMB: totalSizeMB.toFixed(2),
+          gcForced: false,
+          msg: 'processVideoUseCase_010'
+        });
       }
     } catch (cleanupError) {
-      console.warn(`[${jobId}] ⚠️  Cleanup warning:`, cleanupError);
+      logger.warn({
+        traceId,
+        tag: 'process-video.use-case',
+        errorMessage: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+        msg: 'processVideoUseCase_011'
+      });
     }
   }
 }
