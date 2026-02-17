@@ -22,7 +22,6 @@ export const uploadMiddleware = multer({
   limits: {
     fileSize: maxFileSize,
     files: maxFiles,
-    // Performance: Limites adicionais para evitar DoS
     fieldNameSize: 100,
     fieldSize: 1024 * 1024, // 1MB para campos de texto
     fields: 10, 

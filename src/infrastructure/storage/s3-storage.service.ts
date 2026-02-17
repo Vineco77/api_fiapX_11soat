@@ -58,14 +58,6 @@ export class S3StorageService implements IS3StorageService {
     }
   }
 
-  /**
-   * Gera URL assinada para acesso a uma pasta/prefixo no S3
-   * Performance: Cache de URLs no cliente (expiração configurável)
-   * 
-   * Nota: Como S3 não suporta URLs assinadas para "pastas", 
-   * retornamos a URL do bucket com o prefixo.
-   * O Worker usará suas próprias credenciais para listar e acessar os arquivos.
-   */
   async getSignedUrl(prefix: string, _expiresIn: number): Promise<string> {
     try {
       const s3Uri = `s3://${this.bucket}/${prefix}`;
