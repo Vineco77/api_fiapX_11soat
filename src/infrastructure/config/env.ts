@@ -47,6 +47,10 @@ export const appConfig = {
     index: process.env.ELASTICSEARCH_INDEX || 'api-fiapx-logs',
   },
 
+  upload: {
+    useS3Streaming: process.env.USE_S3_STREAMING === 'true',
+  },
+
   limits: {
     maxFps: Number(process.env.MAX_FPS) || 60,
     maxVideoDurationMinutes: Number(process.env.MAX_VIDEO_DURATION_MINUTES) || 10,
@@ -54,6 +58,9 @@ export const appConfig = {
     maxVideosPerRequest: Number(process.env.MAX_VIDEOS_PER_REQUEST) || 10,
     maxFileSizeMB: Number(process.env.MAX_FILE_SIZE_MB) || 500,
     cacheTTLSeconds: Number(process.env.CACHE_TTL_SECONDS) || 300,
+    multipartThresholdMB: Number(process.env.MULTIPART_THRESHOLD_MB) || 100,
+    multipartChunkSizeMB: Number(process.env.MULTIPART_CHUNK_SIZE_MB) || 10,
+    multipartQueueSize: Number(process.env.MULTIPART_QUEUE_SIZE) || 4,
   },
 };
 

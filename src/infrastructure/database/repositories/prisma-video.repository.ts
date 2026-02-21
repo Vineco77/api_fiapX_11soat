@@ -50,7 +50,9 @@ export class PrismaVideoRepository implements IVideoRepository {
         return [];
       }
 
-      const result = await this.prisma.video.createMany({
+      const now = new Date();
+
+      await this.prisma.video.createMany({
         data: videos.map((v) => ({
           id: v.id,
           fileName: v.fileName,
@@ -61,28 +63,29 @@ export class PrismaVideoRepository implements IVideoRepository {
           size: v.size,
           status: v.status ?? VideoStatus.PENDING,
         })),
+        skipDuplicates: true,
       });
 
-      console.log(`${result.count} videos created in DB`);
+      const firstVideo = videos[0]!;
+      this.invalidateCacheByProcessamentoId(firstVideo.processamentoId).catch(
+        (err) => console.warn('Cache invalidation failed:', err)
+      );
 
-      const firstVideo = videos[0];
-      if (!firstVideo) {
-        throw new Error('First video is undefined after createMany');
-      }
-
-      await this.invalidateCacheByProcessamentoId(firstVideo.processamentoId);
-
-      const createdVideos = await this.prisma.video.findMany({
-        where: {
-          processamentoId: firstVideo.processamentoId,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        take: result.count,
-      });
-
-      return createdVideos.map((v) => this.mapToDomain(v));
+      return videos.map((v) => this.mapToDomain({
+        id: v.id!,
+        fileName: v.fileName,
+        fileFormat: v.fileFormat,
+        processamentoId: v.processamentoId,
+        inputUrlStorage: v.inputUrlStorage,
+        outputUrlStorage: v.outputUrlStorage,
+        size: v.size,
+        status: v.status ?? VideoStatus.PENDING,
+        error: null,
+        uploadedAt: now,
+        processedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      }));
     } catch (error) {
       console.error('Error creating multiple videos in DB:', error);
       throw new Error(

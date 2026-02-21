@@ -4,6 +4,7 @@ import {
   DeleteObjectsCommand,
   ListObjectsV2Command,
 } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { injectable } from 'tsyringe';
 import { getS3Client } from '@/infrastructure/config/s3-client';
@@ -15,20 +16,22 @@ import type { IS3StorageService } from '@/domain/repositories/s3-storage.interfa
 export class S3StorageService implements IS3StorageService {
   private readonly s3Client = getS3Client();
   private readonly bucket = appConfig.aws.s3Bucket;
+  private readonly MULTIPART_THRESHOLD = appConfig.limits.multipartThresholdMB * 1024 * 1024;
+  private readonly MULTIPART_CHUNK_SIZE = appConfig.limits.multipartChunkSizeMB * 1024 * 1024;
+  private readonly MULTIPART_QUEUE_SIZE = appConfig.limits.multipartQueueSize;
 
   async uploadFile(file: Buffer, key: string, contentType: string): Promise<void> {
     const startTime = Date.now();
+    const fileSize = file.length;
+    
     try {
-      const command = new PutObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Body: file,
-        ContentType: contentType,
-        ServerSideEncryption: 'AES256',
-        StorageClass: 'STANDARD',
-      });
-
-      await this.s3Client.send(command);
+      if (fileSize >= this.MULTIPART_THRESHOLD) {
+        console.log(`Using multipart upload for large file: ${key} (${(fileSize / (1024 * 1024)).toFixed(2)}MB)`);
+        await this.uploadLargeFile(file, key, contentType);
+      } else {
+        console.log(`Using standard upload for file: ${key} (${(fileSize / (1024 * 1024)).toFixed(2)}MB)`);
+        await this.uploadSmallFile(file, key, contentType);
+      }
       
       const duration = Date.now() - startTime;
       logS3Operation({
@@ -36,11 +39,11 @@ export class S3StorageService implements IS3StorageService {
         bucket: this.bucket,
         key,
         duration,
-        size: file.length,
+        size: fileSize,
         success: true,
       });
       
-      console.log(`File uploaded to S3: ${key}`);
+      console.log(`File uploaded to S3: ${key} in ${duration}ms`);
     } catch (error) {
       const duration = Date.now() - startTime;
       logS3Operation({
@@ -48,7 +51,7 @@ export class S3StorageService implements IS3StorageService {
         bucket: this.bucket,
         key,
         duration,
-        size: file.length,
+        size: fileSize,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       });
@@ -58,16 +61,56 @@ export class S3StorageService implements IS3StorageService {
     }
   }
 
+  private async uploadSmallFile(
+    file: Buffer,
+    key: string,
+    contentType: string
+  ): Promise<void> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      Body: file,
+      ContentType: contentType,
+      ServerSideEncryption: 'AES256',
+      StorageClass: 'STANDARD',
+    });
+
+    await this.s3Client.send(command);
+  }
+
+  private async uploadLargeFile(
+    file: Buffer,
+    key: string,
+    contentType: string
+  ): Promise<void> {
+    const upload = new Upload({
+      client: this.s3Client,
+      params: {
+        Bucket: this.bucket,
+        Key: key,
+        Body: file,
+        ContentType: contentType,
+        ServerSideEncryption: 'AES256',
+        StorageClass: 'STANDARD',
+      },
+      partSize: this.MULTIPART_CHUNK_SIZE,
+      queueSize: this.MULTIPART_QUEUE_SIZE,
+    });
+
+    upload.on('httpUploadProgress', (progress) => {
+      if (progress.loaded && progress.total) {
+        const percentage = ((progress.loaded / progress.total) * 100).toFixed(1);
+        if (Number.parseFloat(percentage) % 25 === 0) {
+          console.log(`Upload ${key}: ${percentage}%`);
+        }
+      }
+    });
+
+    await upload.done();
+  }
+
   async getSignedUrl(prefix: string, _expiresIn: number): Promise<string> {
-    try {
-      const s3Uri = `s3://${this.bucket}/${prefix}`;
-      
-      console.log(`Generated S3 URI: ${s3Uri}`);
-      return s3Uri;
-    } catch (error) {
-      console.error(`Error generating signed URL for prefix: ${prefix}`, error);
-      throw new Error(`Failed to generate signed URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+    return `s3://${this.bucket}/${prefix}`;
   }
 
   async getSignedUrlForFile(key: string, expiresIn: number): Promise<string> {

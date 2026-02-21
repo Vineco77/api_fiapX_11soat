@@ -11,7 +11,6 @@ import type {
 import { ProcessVideoResponseDTO } from '@/domain/dtos/process-video-response.dto';
 import {
   VideoProcessingMessageDTO,
-  VideoProcessingItemDTO,
   PersonDTO,
 } from '@/domain/dtos';
 import {
@@ -94,9 +93,17 @@ export class ProcessVideoUseCase {
         msg: 'Processamento created'
       });
 
-      const videos: VideoProcessingItemDTO[] = [];
+      logger.info({
+        traceId,
+        tag: 'process-video.use-case',
+        filesCount: input.files.length,
+        useS3Streaming: appConfig.upload.useS3Streaming,
+        msg: 'Starting parallel upload and database operations'
+      });
 
-      for (const file of input.files) {
+      const startProcessing = Date.now();
+
+      const uploadPromises = input.files.map(async (file) => {
         const videoId = uuidv4();
         const sanitizedFilename = sanitizeFilename(file.originalname);
         const fileExtension = getFileExtension(file.originalname);
@@ -108,75 +115,138 @@ export class ProcessVideoUseCase {
           sanitizedFilename
         );
 
-        logger.info({
-          traceId,
-          tag: 'process-video.use-case',
+        const startTime = Date.now();
+        const isAlreadyUploaded = !!file.key;
+
+        if (isAlreadyUploaded) {
+          logger.info({
+            traceId,
+            tag: 'process-video.use-case',
+            videoId,
+            filename: sanitizedFilename,
+            mode: 'streaming',
+            msg: 'File already uploaded via streaming'
+          });
+        } else {
+          logger.info({
+            traceId,
+            tag: 'process-video.use-case',
+            videoId,
+            filename: sanitizedFilename,
+            mode: 'memory-buffer',
+            msg: 'Starting upload to S3'
+          });
+
+          await this.s3Storage.uploadFile(file.buffer, s3Key, file.mimetype);
+
+          logger.info({
+            traceId,
+            tag: 'process-video.use-case',
+            videoId,
+            uploadDurationMs: Date.now() - startTime,
+            msg: 'S3 upload completed'
+          });
+        }
+
+        return {
           videoId,
-          filename: sanitizedFilename,
-          s3Key,
-          msg: 'Uploading video to S3'
-        });
+          sanitizedFilename,
+          fileExtension,
+          fileSize: file.size,
+          uploadDuration: Date.now() - startTime,
+        };
+      });
 
-        await this.s3Storage.uploadFile(file.buffer, s3Key, file.mimetype);
+      const uploadResults = await Promise.all(uploadPromises);
+      const uploadPhaseTime = Date.now() - startProcessing;
 
-        const expirationSeconds =
-          appConfig.limits.signedUrlExpirationDays * 24 * 60 * 60;
+      logger.info({
+        traceId,
+        tag: 'process-video.use-case',
+        uploadPhaseMs: uploadPhaseTime,
+        msg: 'All uploads completed'
+      });
 
-        const inputPath = buildVideoInputPath(input.email, jobId, videoId);
-        const outputPath = buildVideoOutputPath(input.email, jobId, videoId);
+      const videosToCreate = uploadResults.map((result) => {
+        const inputPath = buildVideoInputPath(input.email, jobId, result.videoId);
+        const outputPath = buildVideoOutputPath(input.email, jobId, result.videoId);
 
-        const [inputUrlStorage, outputUrlStorage] = await Promise.all([
-          this.s3Storage.getSignedUrl(inputPath, expirationSeconds),
-          this.s3Storage.getSignedUrl(outputPath, expirationSeconds),
-        ]);
-
-        const createdVideo = await this.videoRepository.create({
-          id: videoId,
-          fileName: sanitizedFilename,
-          fileFormat: fileExtension,
+        return {
+          id: result.videoId,
+          fileName: result.sanitizedFilename,
+          fileFormat: result.fileExtension,
           processamentoId: processamento.id,
-          inputUrlStorage,
-          outputUrlStorage,
-          size: BigInt(file.size),
+          inputUrlStorage: `s3://${appConfig.aws.s3Bucket}/${inputPath}`,
+          outputUrlStorage: `s3://${appConfig.aws.s3Bucket}/${outputPath}`,
+          size: BigInt(result.fileSize),
           status: VideoStatus.PENDING,
-        });
+        };
+      });
 
-        logger.info({
-          traceId,
-          tag: 'process-video.use-case',
-          videoId: createdVideo.id,
-          msg: 'Video created in database'
-        });
+      logger.info({
+        traceId,
+        tag: 'process-video.use-case',
+        videosCount: videosToCreate.length,
+        msg: 'Video metadata prepared'
+      });
 
-        videos.push({
-          id: createdVideo.id,
-          id_processamento: jobId,
-          framesPerSecond: input.framesPerSecond,
-          format: input.format,
-          input_url: inputUrlStorage,
-          output_url: outputUrlStorage,
-        });
-      }
+      const expirationSeconds = appConfig.limits.signedUrlExpirationDays * 24 * 60 * 60;
+      
+      const inputUrlPromises = uploadResults.map((result) => {
+        const inputKey = buildVideoFilePath(
+          input.email,
+          jobId,
+          result.videoId,
+          result.sanitizedFilename
+        );
+        return this.s3Storage.getSignedUrlForFile(inputKey, expirationSeconds);
+      });
+
+      const inputUrls = await Promise.all(inputUrlPromises);
+
+      logger.info({
+        traceId,
+        tag: 'process-video.use-case',
+        urlsGenerated: inputUrls.length,
+        msg: 'Signed URLs generated for queue (input only - worker downloads videos)'
+      });
+
+      const dbStartTime = Date.now();
+
+      const videos = videosToCreate.map((video, index) => ({
+        id: video.id,
+        id_processamento: jobId,
+        framesPerSecond: input.framesPerSecond,
+        format: input.format,
+        input_url: inputUrls[index] || '',
+        output_url: video.outputUrlStorage,
+      }));
+
+      const person: PersonDTO = {
+        clientId: input.clientId,
+        name: input.name ?? input.email.split('@')[0] ?? 'User',
+        email: input.email,
+      };
+
+      const message: VideoProcessingMessageDTO = {
+        person,
+        videos,
+      };
 
       try {
-        const person: PersonDTO = {
-          clientId: input.clientId,
-          name: input.name ?? input.email.split('@')[0] ?? 'User',
-          email: input.email,
-        };
+        const [createdVideos] = await Promise.all([
+          this.videoRepository.createMany(videosToCreate),
+          this.queueRepository.publishVideoProcessing(message),
+        ]);
 
-        const message: VideoProcessingMessageDTO = {
-          person,
-          videos,
-        };
-
-        await this.queueRepository.publishVideoProcessing(message);
+        const dbTime = Date.now() - dbStartTime;
 
         logger.info({
           traceId,
           tag: 'process-video.use-case',
-          totalVideos: videos.length,
-          msg: 'Message published to RabbitMQ'
+          dbInsertMs: dbTime,
+          totalProcessingMs: Date.now() - startProcessing,
+          msg: `Batch insert + RabbitMQ publish completed in parallel (${createdVideos.length} videos)`
         });
       } catch (queueError) {
         logger.error({
@@ -184,14 +254,14 @@ export class ProcessVideoUseCase {
           tag: 'process-video.use-case',
           errorMessage:
             queueError instanceof Error ? queueError.message : 'Unknown error',
-          msg: 'Failed to publish to RabbitMQ'
+          msg: 'Failed to publish to RabbitMQ or create videos in DB'
         });
 
         const errorMessage =
           queueError instanceof Error ? queueError.message : 'Unknown error';
         await this.processamentoRepository.updateError(
           jobId,
-          `RabbitMQ unavailable: ${errorMessage}`
+          `Processing failed: ${errorMessage}`
         );
 
         throw new QueueUnavailableError(
@@ -282,11 +352,23 @@ export class ProcessVideoUseCase {
   private cleanupBuffers(files: UploadedFile[], traceId: string): void {
     try {
       const totalSizeMB = this.calculateTotalSize(files) / (1024 * 1024);
+      
+      const filesWithBuffer = files.filter(f => f.buffer && f.buffer.length > 0);
+      const isStreamingMode = filesWithBuffer.length === 0;
 
-      files.forEach((file) => {
-        if (file.buffer) {
-          file.buffer = Buffer.alloc(0);
-        }
+      if (isStreamingMode) {
+        logger.info({
+          traceId,
+          tag: 'process-video.use-case',
+          totalSizeMB: totalSizeMB.toFixed(2),
+          mode: 'streaming',
+          msg: 'No buffer cleanup needed (S3 streaming mode)'
+        });
+        return;
+      }
+
+      filesWithBuffer.forEach((file) => {
+        file.buffer = Buffer.alloc(0);
       });
 
       if (globalThis.gc) {
@@ -295,6 +377,7 @@ export class ProcessVideoUseCase {
           traceId,
           tag: 'process-video.use-case',
           totalSizeMB: totalSizeMB.toFixed(2),
+          filesWithBuffer: filesWithBuffer.length,
           gcForced: true,
           msg: 'Memory cleanup completed (GC forced)'
         });
@@ -303,6 +386,7 @@ export class ProcessVideoUseCase {
           traceId,
           tag: 'process-video.use-case',
           totalSizeMB: totalSizeMB.toFixed(2),
+          filesWithBuffer: filesWithBuffer.length,
           gcForced: false,
           msg: 'Memory cleanup completed (GC not available)'
         });

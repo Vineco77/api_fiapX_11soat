@@ -33,7 +33,7 @@ coverage/
 *.swp
 *.swo
 *~
-.copilot-context.md
+/docs/*
 
 # OS
 .DS_Store

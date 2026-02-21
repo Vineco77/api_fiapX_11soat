@@ -24,6 +24,14 @@ export interface IS3StorageService {
   getSignedUrl(prefix: string, expiresIn: number): Promise<string>;
 
   /**
+   * Gera presigned URL para download de um arquivo específico
+   * @param key - Caminho completo do arquivo (ex: email/jobId/input/video.mp4)
+   * @param expiresIn - Tempo de expiração em segundos
+   * @returns Presigned URL para GetObject
+   */
+  getSignedUrlForFile(key: string, expiresIn: number): Promise<string>;
+
+  /**
    * Gera presigned URL para listagem de objetos em uma pasta
    * Útil para frontend listar arquivos de uma pasta específica
    * @param prefix - Prefixo/pasta (ex: email/jobId/input/)
@@ -46,4 +54,8 @@ export interface UploadedFile {
   mimetype: string;
   buffer: Buffer;
   size: number;
+  key?: string;
+  location?: string;
+  bucket?: string;
+  etag?: string;
 }
