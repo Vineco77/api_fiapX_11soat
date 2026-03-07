@@ -29,18 +29,14 @@ export class RabbitMQQueueService implements IQueueRepository {
       logRabbitMQOperation({
         operation: 'publish',
         queue,
-        messageId: message.jobId,
-        jobId: message.jobId,
+        messageId: message.person.email,
+        jobId: message.videos[0]?.id_processamento ?? 'unknown',
         duration,
         success: true,
+        payload: message,
       });
 
-      console.log(`[RabbitMQ] Message published to ${queue}:`, {
-        jobId: message.jobId,
-        clientId: message.clientId,
-        framesPerSecond: message.framesPerSecond,
-        format: message.format,
-      });
+      console.log(`[RabbitMQ] Message published to ${queue}:`, JSON.stringify(message, null, 2));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
@@ -48,7 +44,7 @@ export class RabbitMQQueueService implements IQueueRepository {
       logRabbitMQOperation({
         operation: 'publish',
         queue: appConfig.rabbitmq.queues.videoProcessing,
-        jobId: message.jobId,
+        jobId: message.videos[0]?.id_processamento ?? 'unknown',
         duration,
         success: false,
         error: errorMessage,

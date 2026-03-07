@@ -1,7 +1,11 @@
-import { IsOptional, IsInt, Min, Max, IsIn } from 'class-validator';
+import { IsOptional, IsInt, Min, Max, IsIn, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class GetVideosQueryDTO {
+  @IsOptional()
+  @IsString()
+  clientId?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -19,8 +23,9 @@ export class GetVideosQueryDTO {
   @IsIn(['pending', 'processing', 'completed', 'failed'])
   status?: 'pending' | 'processing' | 'completed' | 'failed';
 
-  getWithDefaults(): { page: number; limit: number; status?: string } {
+  getWithDefaults(): { page: number; limit: number; status?: string; clientId?: string } {
     return {
+      clientId: this.clientId,
       page: this.page ?? 1,
       limit: this.limit ?? 10,
       status: this.status,

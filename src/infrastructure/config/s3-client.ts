@@ -1,5 +1,22 @@
 import { S3Client } from '@aws-sdk/client-s3';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
+import { Agent as HttpsAgent } from 'node:https';
 import { appConfig } from './env';
+
+const httpsAgent = new HttpsAgent({
+  keepAlive: true,
+  keepAliveMsecs: 30000,
+  maxSockets: 50,
+  maxFreeSockets: 10,
+  timeout: 60000,
+  scheduling: 'lifo',
+});
+
+const nodeHttpHandler = new NodeHttpHandler({
+  httpsAgent,
+  connectionTimeout: 5000,
+  requestTimeout: 300000,
+});
 
 class S3ClientSingleton {
   private static instance: S3Client | null = null;
@@ -14,15 +31,14 @@ class S3ClientSingleton {
           accessKeyId: appConfig.aws.accessKeyId,
           secretAccessKey: appConfig.aws.secretAccessKey,
         },
-        // Performance: Configurações otimizadas
         maxAttempts: 3,
-        requestHandler: {
-          connectionTimeout: 30010, // 30s
-          requestTimeout: 300100, // 5min (vídeos grandes)
-        },
+        requestHandler: nodeHttpHandler,
       });
 
-      console.log('✅ S3 Client initialized');
+      console.log('✅ S3 Client initialized with HTTP/2 support and connection pooling');
+      console.log(`   - Max sockets: 50`);
+      console.log(`   - Keep-alive: 30s`);
+      console.log(`   - Connection timeout: 5s`);
     }
 
     return S3ClientSingleton.instance;

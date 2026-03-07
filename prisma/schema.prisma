@@ -21,27 +21,53 @@ enum VideoStatus {
 }
 
 // ==========================================
+// Model: Processamento
+// ==========================================
+model Processamento {
+  id              String    @id @default(uuid())
+  jobId           String    @unique @map("job_id")
+  clientId        String    @map("client_id")
+  email           String
+  framesPerSecond Int       @map("frames_per_second")
+  format          String    @default("jpg") // Formato de saída dos frames (jpg, png)
+  size            BigInt    @default(0) // Soma do tamanho de todos os vídeos
+  error           String?   // Erro geral do processamento
+  uploadedAt      DateTime  @default(now()) @map("uploaded_at")
+  processedAt     DateTime? @map("processed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relacionamento 1:N com Video
+  videos Video[]
+
+  @@index([clientId])
+  @@index([email])
+  @@index([jobId])
+  @@map("processamentos")
+}
+
+// ==========================================
 // Model: Video
 // ==========================================
 model Video {
   id                String      @id @default(uuid())
-  jobId             String      @unique @map("job_id")
+  fileName          String      @map("file_name") // Nome original do arquivo
+  fileFormat        String      @map("file_format") // Formato do vídeo de entrada (mp4, avi, etc)
+  processamentoId   String      @map("processamento_id") // FK para Processamento
   status            VideoStatus @default(PENDING)
-  clientId          String      @map("client_id")
-  email             String      // Email do cliente (vem do JWT)
-  framesPerSecond   Int         @map("frames_per_second")
-  inputUrlStorage   String      @map("input_url_storage")
-  outputUrlStorage  String      @map("output_url_storage")
-  size              BigInt
-  format            String      @default("jpg")
-  error             String?
+  inputUrlStorage   String      @map("input_url_storage") // Presigned URL S3
+  outputUrlStorage  String      @map("output_url_storage") // Presigned URL S3
+  size              BigInt // Tamanho individual do vídeo
+  error             String? // Erro específico deste vídeo
   uploadedAt        DateTime    @default(now()) @map("uploaded_at")
   processedAt       DateTime?   @map("processed_at")
   createdAt         DateTime    @default(now()) @map("created_at")
   updatedAt         DateTime    @updatedAt @map("updated_at")
 
-  @@index([clientId])
-  @@index([email])
+  // Relacionamento N:1 com Processamento
+  processamento Processamento @relation(fields: [processamentoId], references: [id], onDelete: Cascade)
+
+  @@index([processamentoId])
   @@index([status])
   @@map("videos")
 }

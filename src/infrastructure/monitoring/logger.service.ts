@@ -9,18 +9,48 @@ const esClient = new Client({
   node: appConfig.elasticsearch.url,
 });
 
-async function writeToElasticsearch(log: any): Promise<void> {
+let logBuffer: any[] = [];
+const BATCH_SIZE = 50;
+const FLUSH_INTERVAL = 5000;
+
+async function flushLogs(): Promise<void> {
+  if (logBuffer.length === 0) return;
+
+  const logsToSend = [...logBuffer];
+  logBuffer = [];
+
   try {
-    await esClient.index({
-      index: appConfig.elasticsearch.index,
-      document: log,
-    });
+    const body = logsToSend.flatMap(log => [
+      { index: { _index: appConfig.elasticsearch.index } },
+      log
+    ]);
+
+    await esClient.bulk({ body, refresh: false });
   } catch (error) {
     if (isDevelopment) {
-      console.error('Failed to write to Elasticsearch:', error);
+      console.error('Failed to bulk write to Elasticsearch:', error);
     }
   }
 }
+
+function bufferLog(log: any): void {
+  logBuffer.push({
+    ...log,
+    '@timestamp': new Date().toISOString()
+  });
+
+  if (logBuffer.length >= BATCH_SIZE) {
+    flushLogs().catch(() => {});
+  }
+}
+
+setInterval(() => {
+  flushLogs().catch(() => {});
+}, FLUSH_INTERVAL);
+
+process.on('beforeExit', () => {
+  flushLogs().catch(() => {});
+});
 
 const streams: pino.StreamEntry[] = [
   {
@@ -40,7 +70,7 @@ const streams: pino.StreamEntry[] = [
 
 export const logger = pino(
   {
-    level: process.env.LOG_LEVEL || 'info',
+    level: process.env.LOG_LEVEL || 'debug',
     formatters: {
       level: (label) => {
         return { level: label };
@@ -63,11 +93,9 @@ export const logger = pino(
       logMethod(args: any[], method: any) {
         if (args.length >= 2) {
           const logObject = typeof args[0] === 'object' ? args[0] : {};
-          writeToElasticsearch({ 
+          bufferLog({ 
             ...logObject, 
             message: args.at(-1),
-            '@timestamp': new Date().toISOString() 
-          }).catch(() => {
           });
         }
         method.apply(this, args);
@@ -159,6 +187,7 @@ export function logRabbitMQOperation(context: {
   duration?: number;
   success: boolean;
   error?: string;
+  payload?: unknown;
 }) {
   const level = context.success ? 'info' : 'error';
 

@@ -1,4 +1,5 @@
 import express, { type Application, type Request, type Response } from 'express';
+import compression from 'compression';
 import 'reflect-metadata';
 import { healthRoutes } from '@/infrastructure/routes/health.routes';
 import { videoRoutes } from '@/infrastructure/routes/video.routes';
@@ -18,10 +19,27 @@ export class App {
   }
 
   private setupMiddlewares(): void {
+    this.app.use(compression({
+      level: 6,
+      threshold: 1024,
+      filter: (req, res) => {
+        if (req.headers['content-type']?.includes('multipart')) {
+          return false;
+        }
+        return compression.filter(req, res);
+      },
+    }));
+
+    this.app.use((_req, res, next) => {
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('Keep-Alive', 'timeout=65');
+      next();
+    });
+    
     this.app.use(loggingMiddleware);
     
-    this.app.use(express.json());
-    this.app.use(express.urlencoded({ extended: true }));
+    this.app.use(express.json({ limit: '50mb' }));
+    this.app.use(express.urlencoded({ extended: true, limit: '50mb' }));
   }
 
   private setupRoutes(): void {
@@ -71,7 +89,7 @@ export class App {
 
   public listen(): void {
     const port = Number(process.env.PORT) || 3001;
-    this.app.listen(port, () => {
+    const server = this.app.listen(port, () => {
       logger.info(
         {
           type: 'application.startup',
@@ -86,5 +104,9 @@ export class App {
       console.log(`🎥 Videos endpoint: http://localhost:${port}/videos/process`);
       console.log(`📊 Kibana dashboard: http://localhost:5601`);
     });
+
+    server.keepAliveTimeout = 65000;
+    server.headersTimeout = 66000;
+    server.timeout = 300000;
   }
 }

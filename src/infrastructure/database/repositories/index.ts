@@ -1,5 +1,2 @@
-/**
- * Exportação centralizada dos repositories
- */
-
+export * from './prisma-processamento.repository';
 export * from './prisma-video.repository';

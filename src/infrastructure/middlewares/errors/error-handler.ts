@@ -13,7 +13,6 @@ export function errorHandler(
   const url = req.originalUrl || req.url;
 
   if (error instanceof AppError) {
-    // Log de erros conhecidos (AppError)
     logError({
       traceId,
       errorType: error.constructor.name,
@@ -43,7 +42,7 @@ export function errorHandler(
     stack: error.stack,
   });
 
-  console.error('❌ Unexpected error:', error);
+  console.error('Unexpected error:', error);
 
   res.status(500).json({
     status: 'error',

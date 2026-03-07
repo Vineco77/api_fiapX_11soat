@@ -2,35 +2,37 @@ import { VideoStatus } from '@prisma/client';
 
 export class Video {
   id: string;
-  jobId: string;
+  fileName: string;
+  fileFormat: string;
+  processamentoId: string;
   status: VideoStatus;
-  clientId: string;
-  framesPerSecond: number;
   inputUrlStorage: string;
   outputUrlStorage: string;
   size: bigint;
-  format: string;
   error?: string | null;
+  uploadedAt: Date;
+  processedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 
   constructor(props: VideoProps) {
     this.id = props.id;
-    this.jobId = props.jobId;
+    this.fileName = props.fileName;
+    this.fileFormat = props.fileFormat;
+    this.processamentoId = props.processamentoId;
     this.status = props.status;
-    this.clientId = props.clientId;
-    this.framesPerSecond = props.framesPerSecond;
     this.inputUrlStorage = props.inputUrlStorage;
     this.outputUrlStorage = props.outputUrlStorage;
     this.size = props.size;
-    this.format = props.format;
     this.error = props.error;
+    this.uploadedAt = props.uploadedAt;
+    this.processedAt = props.processedAt;
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
   }
 
-  belongsTo(clientId: string): boolean {
-    return this.clientId === clientId;
+  belongsToProcessamento(processamentoId: string): boolean {
+    return this.processamentoId === processamentoId;
   }
 
   isProcessing(): boolean {
@@ -52,15 +54,17 @@ export class Video {
 
 export interface VideoProps {
   id: string;
-  jobId: string;
+  fileName: string;
+  fileFormat: string;
+  processamentoId: string;
   status: VideoStatus;
-  clientId: string;
-  framesPerSecond: number;
   inputUrlStorage: string;
   outputUrlStorage: string;
   size: bigint;
-  format: string;
   error?: string | null;
+  uploadedAt: Date;
+  processedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
+

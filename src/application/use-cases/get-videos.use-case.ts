@@ -1,12 +1,15 @@
 import { injectable, inject } from 'tsyringe';
-import type { IVideoRepository } from '@/domain/repositories/video.repository.interface';
-import type { IS3StorageService } from '@/domain/repositories/s3-storage.interface';
+import type { IProcessamentoRepository } from '@/domain/repositories/processamento.repository.interface';
 import type { ICacheService } from '@/domain/repositories/cache.interface';
-import type { GetVideosResponseDTO, VideoItemDTO } from '@/domain/dtos/get-videos-response.dto';
-import { buildInputPath, buildOutputPath } from '@/infrastructure/storage/s3-path.helper';
+import type {
+  GetProcessamentosResponseDTO,
+  ProcessamentoResponseDTO,
+  VideoItemResponseDTO,
+} from '@/domain/dtos/processamento-response.dto';
+import { Processamento } from '@/domain/entities/processamento.entity';
 
 interface GetVideosInput {
-  email: string;
+  clientId: string;
   page: number;
   limit: number;
   status?: string;
@@ -15,63 +18,42 @@ interface GetVideosInput {
 @injectable()
 export class GetVideosUseCase {
   constructor(
-    @inject('VideoRepository') private videoRepository: IVideoRepository,
-    @inject('S3StorageService') private s3StorageService: IS3StorageService,
-    @inject('CacheService') private cacheService: ICacheService
+    @inject('ProcessamentoRepository')
+    private readonly processamentoRepository: IProcessamentoRepository,
+    @inject('CacheService') private readonly cacheService: ICacheService
   ) {}
 
-  async execute(input: GetVideosInput): Promise<GetVideosResponseDTO> {
-    const { email, page, limit, status } = input;
+  async execute(input: GetVideosInput): Promise<GetProcessamentosResponseDTO> {
+    const { clientId, page, limit, status } = input;
 
-    const cacheKey = this.buildCacheKey(email, page, limit, status);
-    const cached = await this.cacheService.get<GetVideosResponseDTO>(cacheKey);
+    const cacheKey = this.buildCacheKey(clientId, page, limit, status);
+    const cached =
+      await this.cacheService.get<GetProcessamentosResponseDTO>(cacheKey);
 
     if (cached) {
-      console.log(`✅ Cache HIT for key: ${cacheKey}`);
+      console.log(`Cache HIT for key: ${cacheKey}`);
       return cached;
     }
 
-    console.log(`⚠️ Cache MISS for key: ${cacheKey}`);
+    console.log(`Cache MISS for key: ${cacheKey}`);
 
     const skip = (page - 1) * limit;
 
-    const { videos, total } = await this.videoRepository.findByClientEmail(
-      email,
-      skip,
-      limit,
-      status
-    );
+    const { processamentos, total } =
+      await this.processamentoRepository.findByClientId(
+        clientId,
+        skip,
+        limit,
+        status
+      );
 
-    const videosWithUrls = await Promise.all(
-      videos.map(async (video: any) => {
-        const inputFolderPath = buildInputPath(video.email, video.jobId);
-        const outputFolderPath = buildOutputPath(video.email, video.jobId);
-
-        const [inputFolderUrl, outputFolderUrl] = await Promise.all([
-          this.s3StorageService.getPresignedFolderUrl(inputFolderPath),
-          video.status === 'completed'
-            ? this.s3StorageService.getPresignedFolderUrl(outputFolderPath)
-            : Promise.resolve(undefined),
-        ]);
-
-        return {
-          jobId: video.jobId,
-          clientId: video.clientId,
-          status: video.status,
-          inputFolderUrl,
-          outputFolderUrl,
-          uploadedAt: video.uploadedAt.toISOString(),
-          processedAt: video.processedAt?.toISOString(),
-          framesPerSecond: video.framesPerSecond,
-          format: video.format,
-          error: video.error,
-        } as VideoItemDTO;
-      })
+    const processamentosDTO = processamentos.map((p) =>
+      this.mapToDTO(p)
     );
 
     const totalPages = Math.ceil(total / limit);
-    const response: GetVideosResponseDTO = {
-      videos: videosWithUrls,
+    const response: GetProcessamentosResponseDTO = {
+      processamentos: processamentosDTO,
       pagination: {
         total,
         page,
@@ -82,15 +64,58 @@ export class GetVideosUseCase {
       },
     };
 
-    const cacheTTL = 300;
+    const cacheTTL = 300; // 5 minutos
     await this.cacheService.set(cacheKey, response, cacheTTL);
-    console.log(`✅ Cached result for key: ${cacheKey} (TTL: ${cacheTTL}s)`);
+    console.log(`Cached result for key: ${cacheKey} (TTL: ${cacheTTL}s)`);
 
     return response;
   }
 
-  private buildCacheKey(email: string, page: number, limit: number, status?: string): string {
+  private buildCacheKey(
+    clientId: string,
+    page: number,
+    limit: number,
+    status?: string
+  ): string {
     const statusPart = status ? `:status:${status}` : '';
-    return `videos:${email}:page:${page}:limit:${limit}${statusPart}`;
+    return `processamentos:${clientId}:page:${page}:limit:${limit}${statusPart}`;
+  }
+
+  private mapToDTO(processamento: Processamento): ProcessamentoResponseDTO {
+    const videos: VideoItemResponseDTO[] = processamento.videos.map((video) => ({
+      id: video.id,
+      fileName: video.fileName,
+      fileFormat: video.fileFormat,
+      status: video.status as 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED',
+      inputUrlStorage: video.inputUrlStorage,
+      outputUrlStorage: video.outputUrlStorage,
+      size: video.size.toString(),
+      error: video.error,
+      uploadedAt: video.uploadedAt.toISOString(),
+      processedAt: video.processedAt?.toISOString() ?? null,
+    }));
+
+    const stats = {
+      totalVideos: processamento.getTotalVideos(),
+      completed: processamento.getCompletedVideosCount(),
+      processing: processamento.getProcessingVideosCount(),
+      failed: processamento.getFailedVideosCount(),
+      pending: processamento.videos.filter((v) => v.isPending()).length,
+    };
+
+    return {
+      id: processamento.id,
+      jobId: processamento.jobId,
+      clientId: processamento.clientId,
+      email: processamento.email,
+      framesPerSecond: processamento.framesPerSecond,
+      format: processamento.format,
+      size: processamento.size.toString(),
+      error: processamento.error,
+      uploadedAt: processamento.uploadedAt.toISOString(),
+      processedAt: processamento.processedAt?.toISOString() ?? null,
+      videos,
+      stats,
+    };
   }
 }

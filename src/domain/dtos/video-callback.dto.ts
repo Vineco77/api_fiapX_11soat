@@ -1,6 +1,6 @@
 export interface VideoCallbackDTO {
-  jobId: string;
+  id: string;
+  id_processamento: string;
   status: 'COMPLETED' | 'FAILED';
   error?: string;
-  framesExtracted?: number;
 }

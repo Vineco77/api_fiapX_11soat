@@ -1,12 +1,12 @@
 import { injectable, inject } from 'tsyringe';
-import { Video, VideoStatus } from '@prisma/client';
+import { VideoStatus } from '@prisma/client';
 import { getPrismaClient } from '@/infrastructure/database/prisma-client';
 import type {
   IVideoRepository,
   CreateVideoData,
 } from '@/domain/repositories/video.repository.interface';
 import type { ICacheService } from '@/domain/repositories/cache.interface';
-
+import { Video } from '@/domain/entities/video.entity';
 
 @injectable()
 export class PrismaVideoRepository implements IVideoRepository {
@@ -20,184 +20,237 @@ export class PrismaVideoRepository implements IVideoRepository {
     try {
       const video = await this.prisma.video.create({
         data: {
-          jobId: data.jobId,
-          clientId: data.clientId,
-          email: data.email,
-          framesPerSecond: data.framesPerSecond,
+          id: data.id,
+          fileName: data.fileName,
+          fileFormat: data.fileFormat,
+          processamentoId: data.processamentoId,
           inputUrlStorage: data.inputUrlStorage,
           outputUrlStorage: data.outputUrlStorage,
           size: data.size,
-          format: data.format,
-          status: VideoStatus.PENDING,
+          status: data.status ?? VideoStatus.PENDING,
         },
       });
 
-      console.log(`✅ Video created in DB: ${video.jobId}`);
+      console.log(`Video created in DB: ${video.id} (${video.fileName})`);
 
-      await this.invalidateClientCache(data.email);
+      await this.invalidateCacheByProcessamentoId(data.processamentoId);
 
-      return video;
+      return this.mapToDomain(video);
     } catch (error) {
-      console.error('❌ Error creating video in DB:', error);
+      console.error('Error creating video in DB:', error);
       throw new Error(
         `Failed to create video: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
 
-  async findByJobId(jobId: string): Promise<Video | null> {
+  async createMany(videos: CreateVideoData[]): Promise<Video[]> {
     try {
-      const video = await this.prisma.video.findUnique({
-        where: { jobId },
+      if (videos.length === 0) {
+        return [];
+      }
+
+      const now = new Date();
+
+      await this.prisma.video.createMany({
+        data: videos.map((v) => ({
+          id: v.id,
+          fileName: v.fileName,
+          fileFormat: v.fileFormat,
+          processamentoId: v.processamentoId,
+          inputUrlStorage: v.inputUrlStorage,
+          outputUrlStorage: v.outputUrlStorage,
+          size: v.size,
+          status: v.status ?? VideoStatus.PENDING,
+        })),
+        skipDuplicates: true,
       });
 
-      return video;
+      const firstVideo = videos[0]!;
+      this.invalidateCacheByProcessamentoId(firstVideo.processamentoId).catch(
+        (err) => console.warn('Cache invalidation failed:', err)
+      );
+
+      return videos.map((v) => this.mapToDomain({
+        id: v.id!,
+        fileName: v.fileName,
+        fileFormat: v.fileFormat,
+        processamentoId: v.processamentoId,
+        inputUrlStorage: v.inputUrlStorage,
+        outputUrlStorage: v.outputUrlStorage,
+        size: v.size,
+        status: v.status ?? VideoStatus.PENDING,
+        error: null,
+        uploadedAt: now,
+        processedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      }));
     } catch (error) {
-      console.error(`❌ Error finding video by jobId: ${jobId}`, error);
+      console.error('Error creating multiple videos in DB:', error);
+      throw new Error(
+        `Failed to create videos: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  async findById(id: string): Promise<Video | null> {
+    try {
+      const video = await this.prisma.video.findUnique({
+        where: { id },
+      });
+
+      if (!video) {
+        return null;
+      }
+
+      return this.mapToDomain(video);
+    } catch (error) {
+      console.error(`Error finding video by id: ${id}`, error);
       throw new Error(
         `Failed to find video: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
 
-  async findByClientId(
-    clientId: string,
-    page: number,
-    limit: number
-  ): Promise<{ videos: Video[]; total: number }> {
+  async findByProcessamentoId(processamentoId: string): Promise<Video[]> {
     try {
-      const skip = (page - 1) * limit;
-
-      const [videos, total] = await Promise.all([
-        this.prisma.video.findMany({
-          where: { clientId },
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit,
-        }),
-        this.prisma.video.count({
-          where: { clientId },
-        }),
-      ]);
-
-      console.log(
-        `✅ Found ${videos.length} videos for client: ${clientId} (page ${page})`
-      );
-
-      return { videos, total };
-    } catch (error) {
-      console.error(`❌ Error finding videos for client: ${clientId}`, error);
-      throw new Error(
-        `Failed to find videos: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  async findByClientEmail(
-    email: string,
-    skip: number,
-    take: number,
-    status?: string
-  ): Promise<{ videos: Video[]; total: number }> {
-    try {
-      const where: any = { email };
-      
-      if (status) {
-        where.status = status.toUpperCase() as VideoStatus;
-      }
-
-      const [videos, total] = await Promise.all([
-        this.prisma.video.findMany({
-          where,
-          orderBy: { uploadedAt: 'desc' },
-          skip,
-          take,
-        }),
-        this.prisma.video.count({
-          where,
-        }),
-      ]);
-
-      console.log(
-        `✅ Found ${videos.length} videos for email: ${email} (skip: ${skip}, take: ${take})`
-      );
-
-      return { videos, total };
-    } catch (error) {
-      console.error(`❌ Error finding videos for email: ${email}`, error);
-      throw new Error(
-        `Failed to find videos: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  async getEmailByJobId(jobId: string): Promise<string | null> {
-    try {
-      const video = await this.prisma.video.findUnique({
-        where: { jobId },
-        select: { email: true },
+      const videos = await this.prisma.video.findMany({
+        where: { processamentoId },
+        orderBy: { createdAt: 'asc' },
       });
 
-      return video?.email ?? null;
-    } catch (error) {
-      console.error(`❌ Error fetching email for jobId: ${jobId}`, error);
-      return null;
-    }
-  }
+      console.log(
+        `Found ${videos.length} videos for processamento: ${processamentoId}`
+      );
 
-  private async invalidateClientCache(email: string): Promise<void> {
-    try {
-      const pattern = `videos:${email}:*`;
-      await this.cacheService.deletePattern(pattern);
-      console.log(`🗑️  Cache invalidated for pattern: ${pattern}`);
+      return videos.map((v) => this.mapToDomain(v));
     } catch (error) {
-      console.error(`⚠️  Failed to invalidate cache for ${email}:`, error);
+      console.error(
+        `Error finding videos for processamento: ${processamentoId}`,
+        error
+      );
+      throw new Error(
+        `Failed to find videos: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
   }
 
   async updateStatus(
-    jobId: string,
+    videoId: string,
     status: VideoStatus,
-    error?: string
+    error?: string,
+    processedAt?: Date
   ): Promise<Video> {
     try {
       const video = await this.prisma.video.update({
-        where: { jobId },
+        where: { id: videoId },
         data: {
           status,
           error: error ?? null,
+          processedAt: processedAt ?? null,
           updatedAt: new Date(),
         },
       });
 
-      console.log(`✅ Video status updated: ${jobId} -> ${status}`);
+      console.log(`Video status updated: ${videoId} -> ${status}`);
 
-      const email = await this.getEmailByJobId(jobId);
-      if (email) {
-        await this.invalidateClientCache(email);
-      }
+      await this.invalidateCacheByProcessamentoId(video.processamentoId);
 
-      return video;
+      return this.mapToDomain(video);
     } catch (error) {
-      console.error(`❌ Error updating video status: ${jobId}`, error);
+      console.error(`Error updating video status: ${videoId}`, error);
       throw new Error(
         `Failed to update video status: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
 
-  async delete(jobId: string): Promise<void> {
+  async delete(videoId: string): Promise<void> {
     try {
-      await this.prisma.video.delete({
-        where: { jobId },
+      const video = await this.prisma.video.findUnique({
+        where: { id: videoId },
       });
 
-      console.log(`✅ Video deleted from DB: ${jobId}`);
+      if (!video) {
+        throw new Error(`Video not found: ${videoId}`);
+      }
+
+      await this.prisma.video.delete({
+        where: { id: videoId },
+      });
+
+      console.log(`Video deleted from DB: ${videoId}`);
+
+      await this.invalidateCacheByProcessamentoId(video.processamentoId);
     } catch (error) {
-      console.error(`❌ Error deleting video: ${jobId}`, error);
+      console.error(`Error deleting video: ${videoId}`, error);
       throw new Error(
         `Failed to delete video: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
+
+  async deleteByProcessamentoId(processamentoId: string): Promise<void> {
+    try {
+      await this.prisma.video.deleteMany({
+        where: { processamentoId },
+      });
+
+      console.log(
+        `All videos deleted for processamento: ${processamentoId}`
+      );
+
+      await this.invalidateCacheByProcessamentoId(processamentoId);
+    } catch (error) {
+      console.error(
+        `Error deleting videos for processamento: ${processamentoId}`,
+        error
+      );
+      throw new Error(
+        `Failed to delete videos: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async invalidateCacheByProcessamentoId(
+    processamentoId: string
+  ): Promise<void> {
+    try {
+      const processamento = await this.prisma.processamento.findFirst({
+        where: { id: processamentoId },
+        select: { clientId: true },
+      });
+
+      if (processamento?.clientId) {
+        const pattern = `processamentos:${processamento.clientId}:*`;
+        await this.cacheService.deletePattern(pattern);
+        console.log(`Cache invalidated for pattern: ${pattern}`);
+      }
+    } catch (error) {
+      console.error(
+        `Failed to invalidate cache for processamento ${processamentoId}:`,
+        error
+      );
+    }
+  }
+
+  private mapToDomain(data: any): Video {
+    return new Video({
+      id: data.id,
+      fileName: data.fileName,
+      fileFormat: data.fileFormat,
+      processamentoId: data.processamentoId,
+      status: data.status,
+      inputUrlStorage: data.inputUrlStorage,
+      outputUrlStorage: data.outputUrlStorage,
+      size: data.size,
+      error: data.error,
+      uploadedAt: data.uploadedAt,
+      processedAt: data.processedAt,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    });
+  }
 }
+

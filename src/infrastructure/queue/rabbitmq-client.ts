@@ -3,7 +3,7 @@ import { appConfig } from '../config/env';
 
 class RabbitMQClient {
   private static instance: RabbitMQClient;
-  private connection: amqp.Connection | null = null;
+  private connection: amqp.ChannelModel | null = null;
   private channel: amqp.Channel | null = null;
   private isConnecting = false;
 
@@ -34,7 +34,7 @@ class RabbitMQClient {
       console.log('[RabbitMQ] Connecting to RabbitMQ...');
 
       const conn = await amqp.connect(appConfig.rabbitmq.url);
-      this.connection = conn as any;
+      this.connection = conn;
 
       conn.on('error', (err: Error) => {
         console.error('[RabbitMQ] Connection error:', err.message);
@@ -58,9 +58,9 @@ class RabbitMQClient {
         this.channel = null;
       });
 
-      await this.assertQueues();
+      // await this.assertQueues();
 
-      console.log('✅ [RabbitMQ] Connected successfully');
+      console.log('[RabbitMQ] Connected successfully');
 
       this.isConnecting = false;
       return ch;
@@ -69,30 +69,27 @@ class RabbitMQClient {
       this.connection = null;
       this.channel = null;
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       console.error(`[RabbitMQ] Failed to connect: ${errorMessage}`);
 
       throw new Error(`RabbitMQ connection failed: ${errorMessage}`);
     }
   }
 
-  private async assertQueues(): Promise<void> {
-    if (!this.channel) {
-      throw new Error('Channel not available');
-    }
+  // private async assertQueues(): Promise<void> {
+  //   if (!this.channel) {
+  //     throw new Error('Channel not available');
+  //   }
 
-    const { videoProcessing, videoCompleted } = appConfig.rabbitmq.queues;
+  //   const { videoProcessing } = appConfig.rabbitmq.queues;
 
-    await this.channel.assertQueue(videoProcessing, {
-      durable: true,
-    });
+  //   await this.channel.assertQueue(videoProcessing, {
+  //     durable: true,
+  //   });
 
-    await this.channel.assertQueue(videoCompleted, {
-      durable: true,
-    });
-
-    console.log(`[RabbitMQ] Queues asserted: ${videoProcessing}, ${videoCompleted}`);
-  }
+  //   console.log(`[RabbitMQ] Queue asserted: ${videoProcessing}`);
+  // }
 
   public async getChannel(): Promise<amqp.Channel> {
     if (!this.channel) {
@@ -109,13 +106,14 @@ class RabbitMQClient {
       }
 
       if (this.connection) {
-        await (this.connection as any).close();
+        await this.connection.close();
         this.connection = null;
       }
 
       console.log('[RabbitMQ] Connection closed gracefully');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       console.error(`[RabbitMQ] Error closing connection: ${errorMessage}`);
     }
   }

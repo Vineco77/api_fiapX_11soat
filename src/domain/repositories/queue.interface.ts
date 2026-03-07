@@ -2,7 +2,7 @@ import { VideoProcessingMessageDTO } from '../dtos';
 
 export interface IQueueRepository {
   /**
-   * Publica mensagem de processamento de vídeo na fila video.processing
+   * Publica mensagem de processamento de vídeo em lote na fila batch.video.processing
    * @param message - Dados do job para o Worker processar
    * @throws QueueUnavailableError se RabbitMQ estiver indisponível
    */

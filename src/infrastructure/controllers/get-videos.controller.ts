@@ -7,7 +7,6 @@ import { GetVideosQueryDTO } from '@/domain/dtos/get-videos-query.dto';
 import { ValidationError } from '@/infrastructure/middlewares/errors';
 import { getAuthenticatedUser } from '@/infrastructure/middlewares';
 
-
 export class GetVideosController {
   async list(req: Request, res: Response): Promise<void> {
     const queryDto = plainToInstance(GetVideosQueryDTO, req.query);
@@ -22,11 +21,13 @@ export class GetVideosController {
     }
 
     const user = getAuthenticatedUser(req);
+    const clientId = user.clientId;
+    console.log(`JWT Auth - using clientId from token: ${clientId}`);
 
     const { page, limit, status } = queryDto.getWithDefaults();
     const useCase = container.resolve(GetVideosUseCase);
     const result = await useCase.execute({
-      email: user.email,
+      clientId,
       page,
       limit,
       status,
