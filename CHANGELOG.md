@@ -1,0 +1,27 @@
+# 1.0.0 (2026-03-07)
+
+
+### Features
+
+* add .gitkeep files for service, use cases, DTOs, entities, factories, models, repositories, cache, config, controllers, database repositories, middlewares, queue, routes, and storage directories, just to save files on the achitecture ([4f42811](https://github.com/Vineco77/api_fiapX_11soat/commit/4f42811a1575f26811e7ca59090520af363e6237))
+* add getEmailByJobId method and cache invalidation in PrismaVideoRepository ([6df29dd](https://github.com/Vineco77/api_fiapX_11soat/commit/6df29dd22c5dc6a46402f3c0b3ffca28caa44ef8))
+* add initial Prisma migration and schema for Video model with VideoStatus enum ([eacb646](https://github.com/Vineco77/api_fiapX_11soat/commit/eacb6467597594744525c8a32526e362cd3be99c))
+* add processamento and video entities, DTOs, and repository interfaces; enhance video processing logic ([88e78e2](https://github.com/Vineco77/api_fiapX_11soat/commit/88e78e2dc15dddf2ed926a7dbfb07dc254832694))
+* add RabbitMQ management port and URL to environment configuration; enhance connection handling in RabbitMQ client ([f21a2c0](https://github.com/Vineco77/api_fiapX_11soat/commit/f21a2c0fb158939ea81106c6d3ecd6ca496b5a01))
+* enhance dependency injection for services and repositories; add video callback controller; implement mock authentication logic ([8ed2c47](https://github.com/Vineco77/api_fiapX_11soat/commit/8ed2c47f65e9dc488b3ea9d870c22be63ada0d74))
+* enhance health check use case with S3 and auth service checks; improve logging in process video and auth middleware ([7a1dbaf](https://github.com/Vineco77/api_fiapX_11soat/commit/7a1dbaf335e3aaa02b02988a9fc4a33330ac8a33))
+* enhance video upload process with S3 streaming support; optimize multipart upload settings; improve logging and error handling ([abcb337](https://github.com/Vineco77/api_fiapX_11soat/commit/abcb3377f17635b0dda6fd80788015af748e4d4e))
+* implement health check functionality with detailed status reporting ([5cab20c](https://github.com/Vineco77/api_fiapX_11soat/commit/5cab20c6f420e9d371cefe7bd90e905e90df7b85))
+* implement Redis cache service and RabbitMQ queue service with error handling ([bde989c](https://github.com/Vineco77/api_fiapX_11soat/commit/bde989c1ce91ab3d7ea09f14f9ad1bbfa39edc99))
+* implement S3 storage service, video repository, and error handling middleware ([db8a91e](https://github.com/Vineco77/api_fiapX_11soat/commit/db8a91e87f74d34f9eda0e26e7f02c747d1862a6))
+* implement video processing and retrieval use cases, including controllers, DTOs, and error handling ([72fbc14](https://github.com/Vineco77/api_fiapX_11soat/commit/72fbc145be004ef33bc93aec2030ac99622ca4c9))
+* integrate Elasticsearch and Kibana for monitoring and logging ([d65d833](https://github.com/Vineco77/api_fiapX_11soat/commit/d65d8330327f6ae55575d7789084b0e388041c32))
+* optimize video processing by adding memory cleanup and simplifying file handling ([c0fa524](https://github.com/Vineco77/api_fiapX_11soat/commit/c0fa5244ddeb132900c71ce17ed33b003951f0d1))
+* refactor GetVideosUseCase to use ProcessamentoRepository; update input and output DTOs; enhance caching logic ([aeee46e](https://github.com/Vineco77/api_fiapX_11soat/commit/aeee46ef9f4d0407864aec6755a656ead5f17f50))
+* refactor video and processamento models; update database schema and repository logic ([a055ba6](https://github.com/Vineco77/api_fiapX_11soat/commit/a055ba6525d7b7f4c1cb016dd1b51f01dcb3921f))
+* **tests:** add comprehensive unit tests for controllers, middlewares, and error handling ([85e5b03](https://github.com/Vineco77/api_fiapX_11soat/commit/85e5b03be8869ff72b91ed93f808e2857252618a))
+* update Dockerfile to run database migrations before starting the server ([80d0102](https://github.com/Vineco77/api_fiapX_11soat/commit/80d010296369b88767d52336120e50d3303b4e7b))
+* update environment variables, add email and timestamps to Video model, and include new dependencies ([f009c16](https://github.com/Vineco77/api_fiapX_11soat/commit/f009c1682dd34de67e9d5ec0d1364ec6a233a08c))
+* update environment variables, enhance Redis and S3 configurations, and implement authentication middleware ([44e845d](https://github.com/Vineco77/api_fiapX_11soat/commit/44e845d94b87047c6b3c2848319a1ac171648276))
+* update RabbitMQ client connection handling and remove unused URL configuration ([9193be1](https://github.com/Vineco77/api_fiapX_11soat/commit/9193be1e606983487dfa7dd44b3e73d54af1752b))
+* update upload middleware limits; remove commented performance notes; add video callback route; refactor S3 path helpers for video processing ([45cdfd3](https://github.com/Vineco77/api_fiapX_11soat/commit/45cdfd33bf9b362d4421989fb80b7175f8a24fb5))

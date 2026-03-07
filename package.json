@@ -1,6 +1,6 @@
 {
   "name": "api_fiapx_11soat",
-  "version": "2.0.3",
+  "version": "1.0.0",
   "description": "API de Processamento de Vídeos - Hackathon FIAP 11SOAT",
   "main": "dist/server.js",
   "scripts": {
