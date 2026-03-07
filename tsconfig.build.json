@@ -6,7 +6,7 @@
     "emitDecoratorMetadata": true,
 
     "module": "commonjs",
-    "rootDir": ".",
+    "rootDir": "./src",
     "moduleResolution": "node",
     "baseUrl": "./",
     "paths": {
@@ -33,14 +33,14 @@
     "strictPropertyInitialization": true,
     "noImplicitThis": true,
     "alwaysStrict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
 
     "skipLibCheck": true
   },
-  "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
 }

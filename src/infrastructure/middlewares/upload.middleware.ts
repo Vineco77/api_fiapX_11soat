@@ -38,26 +38,31 @@ const createStorage = (): multer.StorageEngine => {
         });
       },
       key: (req, file, cb) => {
-        const tempJobId = uuidv4();
+        const reqWithBody = req as any;
+
+        if (!reqWithBody.body) reqWithBody.body = {};
+        if (!reqWithBody.body.streamingJobId) {
+          reqWithBody.body.streamingJobId = uuidv4();
+        }
+        const streamingJobId = reqWithBody.body.streamingJobId;
+
         const videoId = uuidv4();
         const sanitized = sanitizeFilename(file.originalname);
-        
+
         const user = (req as any).user;
         const email = user?.email || 'temp@temp.com';
-        
-        const s3Key = buildVideoFilePath(email, tempJobId, videoId, sanitized);
-        
-        const reqWithBody = req as any;
+
+        const s3Key = buildVideoFilePath(email, streamingJobId, videoId, sanitized);
+
         if (!reqWithBody.body.uploadMetadata) {
           reqWithBody.body.uploadMetadata = [];
         }
         reqWithBody.body.uploadMetadata.push({
           originalName: file.originalname,
           videoId,
-          tempJobId,
           s3Key,
         });
-        
+
         console.log(`Streaming upload to S3: ${s3Key}`);
         cb(null, s3Key);
       },

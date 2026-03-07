@@ -58,7 +58,7 @@ class RabbitMQClient {
         this.channel = null;
       });
 
-      await this.assertQueues();
+      // await this.assertQueues();
 
       console.log('[RabbitMQ] Connected successfully');
 
@@ -76,19 +76,19 @@ class RabbitMQClient {
     }
   }
 
-  private async assertQueues(): Promise<void> {
-    if (!this.channel) {
-      throw new Error('Channel not available');
-    }
+  // private async assertQueues(): Promise<void> {
+  //   if (!this.channel) {
+  //     throw new Error('Channel not available');
+  //   }
 
-    const { videoProcessing } = appConfig.rabbitmq.queues;
+  //   const { videoProcessing } = appConfig.rabbitmq.queues;
 
-    await this.channel.assertQueue(videoProcessing, {
-      durable: true,
-    });
+  //   await this.channel.assertQueue(videoProcessing, {
+  //     durable: true,
+  //   });
 
-    console.log(`[RabbitMQ] Queue asserted: ${videoProcessing}`);
-  }
+  //   console.log(`[RabbitMQ] Queue asserted: ${videoProcessing}`);
+  // }
 
   public async getChannel(): Promise<amqp.Channel> {
     if (!this.channel) {

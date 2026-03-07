@@ -1,16 +1,17 @@
 {
   "name": "api_fiapx_11soat",
-  "version": "1.0.0",
+  "version": "2.0.3",
   "description": "API de Processamento de Vídeos - Hackathon FIAP 11SOAT",
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only --ignore-watch node_modules --no-notify -r tsconfig-paths/register src/server.ts",
-    "build": "tsc && tsc-alias",
+    "build": "tsc -p tsconfig.build.json && tsc-alias -p tsconfig.build.json",
     "start": "node dist/server.js",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest --forceExit --detectOpenHandles",
+    "test:cov": "jest --coverage --forceExit --detectOpenHandles",
     "docker:build": "docker-compose build",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
@@ -60,6 +61,7 @@
     "@types/amqplib": "^0.10.8",
     "@types/compression": "^1.8.1",
     "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
     "@types/multer": "^2.0.0",
     "@types/multer-s3": "^3.0.3",
     "@types/node": "^25.0.9",
@@ -69,11 +71,16 @@
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
+    "jest": "^30.2.0",
     "prettier": "^3.8.0",
     "prisma": "^6.19.2",
+    "ts-jest": "^29.4.6",
     "ts-node-dev": "^2.0.0",
     "tsc-alias": "^1.8.16",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "semantic-release": "^24.2.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1"
   }
 }

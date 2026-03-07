@@ -23,7 +23,7 @@ export const appConfig = {
     password: process.env.RABBITMQ_PASSWORD || 'guest',
     url: process.env.RABBITMQ_URL || `amqp://${process.env.RABBITMQ_USER || 'guest'}:${process.env.RABBITMQ_PASSWORD || 'guest'}@${process.env.RABBITMQ_HOST || 'localhost'}:${process.env.RABBITMQ_PORT || 5672}`,
     queues: {
-      videoProcessing: process.env.RABBITMQ_QUEUE_PROCESSING || 'video.processing',
+      videoProcessing: process.env.RABBITMQ_QUEUE_PROCESSING || 'batch.video.processing',
     },
   },
 
@@ -88,5 +88,4 @@ export const env = {
   ...appConfig,
   JWT_SECRET: appConfig.auth.jwtSecret,
   AUTH_GATE: appConfig.auth.authGate,
-  MOCK_AUTH: appConfig.auth.mockAuth,
 };

@@ -33,16 +33,10 @@ export class RabbitMQQueueService implements IQueueRepository {
         jobId: message.videos[0]?.id_processamento ?? 'unknown',
         duration,
         success: true,
+        payload: message,
       });
 
-      console.log(`[RabbitMQ] Message published to ${queue}:`, {
-        person: {
-          clientId: message.person.clientId,
-          email: message.person.email,
-        },
-        totalVideos: message.videos.length,
-        jobId: message.videos[0]?.id_processamento,
-      });
+      console.log(`[RabbitMQ] Message published to ${queue}:`, JSON.stringify(message, null, 2));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       

@@ -33,6 +33,10 @@ export class ProcessVideoController {
 
     const files = req.files as UploadedFile[];
 
+    const streamingJobId: string | undefined = req.body.streamingJobId;
+    const uploadMetadata: Array<{ originalName: string; videoId: string; s3Key: string }> | undefined =
+      req.body.uploadMetadata;
+
     const useCase = container.resolve(ProcessVideoUseCase);
     const result = await useCase.execute({
       files,
@@ -40,6 +44,8 @@ export class ProcessVideoController {
       format,
       clientId: user.clientId,
       email: user.email,
+      streamingJobId,
+      uploadMetadata,
     });
 
     res.status(200).json(result);

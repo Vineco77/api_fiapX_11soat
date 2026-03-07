@@ -37,6 +37,10 @@ export interface ProcessVideoInput {
   clientId: string;
   email: string;
   name?: string;
+  /** jobId already embedded in S3 paths during streaming upload */
+  streamingJobId?: string;
+  /** Per-file metadata recorded by the streaming upload middleware */
+  uploadMetadata?: Array<{ originalName: string; videoId: string; s3Key: string }>;
 }
 
 @injectable()
@@ -55,7 +59,7 @@ export class ProcessVideoUseCase {
   async execute(input: ProcessVideoInput): Promise<ProcessVideoResponseDTO> {
     this.validateInput(input);
 
-    const jobId = uuidv4();
+    const jobId = input.streamingJobId ?? uuidv4();
     const traceId = jobId;
 
     logger.info({
@@ -104,7 +108,13 @@ export class ProcessVideoUseCase {
       const startProcessing = Date.now();
 
       const uploadPromises = input.files.map(async (file) => {
-        const videoId = uuidv4();
+        // In streaming mode the middleware already uploaded the file and assigned
+        // a videoId that is embedded in the S3 key – reuse it so the path in the
+        // queue message matches the actual S3 location.
+        const streamingMeta = input.uploadMetadata?.find(
+          (m) => m.originalName === file.originalname
+        );
+        const videoId = streamingMeta?.videoId ?? uuidv4();
         const sanitizedFilename = sanitizeFilename(file.originalname);
         const fileExtension = getFileExtension(file.originalname);
 
@@ -190,35 +200,14 @@ export class ProcessVideoUseCase {
         msg: 'Video metadata prepared'
       });
 
-      const expirationSeconds = appConfig.limits.signedUrlExpirationDays * 24 * 60 * 60;
-      
-      const inputUrlPromises = uploadResults.map((result) => {
-        const inputKey = buildVideoFilePath(
-          input.email,
-          jobId,
-          result.videoId,
-          result.sanitizedFilename
-        );
-        return this.s3Storage.getSignedUrlForFile(inputKey, expirationSeconds);
-      });
-
-      const inputUrls = await Promise.all(inputUrlPromises);
-
-      logger.info({
-        traceId,
-        tag: 'process-video.use-case',
-        urlsGenerated: inputUrls.length,
-        msg: 'Signed URLs generated for queue (input only - worker downloads videos)'
-      });
-
       const dbStartTime = Date.now();
 
-      const videos = videosToCreate.map((video, index) => ({
+      const videos = videosToCreate.map((video) => ({
         id: video.id,
         id_processamento: jobId,
         framesPerSecond: input.framesPerSecond,
         format: input.format,
-        input_url: inputUrls[index] || '',
+        input_url: video.inputUrlStorage,
         output_url: video.outputUrlStorage,
       }));
 

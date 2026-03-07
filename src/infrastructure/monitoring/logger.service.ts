@@ -187,6 +187,7 @@ export function logRabbitMQOperation(context: {
   duration?: number;
   success: boolean;
   error?: string;
+  payload?: unknown;
 }) {
   const level = context.success ? 'info' : 'error';
 

@@ -1,7 +1,6 @@
 
 # Dependencies
 node_modules/
-package-lock.json
 yarn.lock
 
 # Environment
@@ -52,3 +51,6 @@ prisma/*.db-journal
 
 # Docker
 docker-compose.override.yml
+
+# Copilot context (uso local apenas, não deve ir para o GitHub)
+docs/.copilot-context.md
