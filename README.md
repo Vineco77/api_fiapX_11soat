@@ -32,12 +32,10 @@ src/
 │   ├── entities/        # Entidades de negócio
 │   ├── dtos/            # Data Transfer Objects
 │   ├── models/          # Models do Prisma
-│   ├── factories/       # Factory patterns
 │   └── repositories/    # Interfaces de repositórios
 │
-├── application/         # Camada de aplicação (use cases, serviços)
-│   ├── use-cases/       # Casos de uso
-│   └── services/        # Serviços de lógica de negócio
+├── application/         # Camada de aplicação (use cases)
+│   └── use-cases/       # Casos de uso
 │
 ├── infrastructure/      # Camada de infraestrutura (implementações)
 │   ├── config/          # Configurações (env, DI, app)
@@ -53,7 +51,7 @@ src/
 └── server.ts            # Arquivo de entrada
 ```
 
-## 🚀 Como Executar:
+## 🚀 Como Executar Localmente
 
 ### 1. Clonar o repositório
 
@@ -75,17 +73,72 @@ cp .env.example .env
 # Edite o arquivo .env com suas configurações
 ```
 
-### 4. Executar em desenvolvimento
+### 4. Gerar client do Prisma e rodar migrations
+
+```bash
+npx prisma generate
+npx prisma migrate dev
+```
+
+### 5. Executar em desenvolvimento
 
 ```bash
 npm run dev
 ```
 
-### 5. Compilar para produção
+### 6. Compilar para produção
 
 ```bash
 npm run build
 npm start
+```
+
+## 🐳 Como Executar com Docker
+
+### 1. Configurar variáveis de ambiente
+
+```bash
+cp .env.example .env
+```
+
+Preencha no `.env` pelo menos os campos de integração necessários (`AWS_*`, `AUTH_GATE`, `JWT_SECRET`) e, se necessário, portas customizadas.
+
+### 2. Subir os serviços com Docker Compose
+
+```bash
+docker-compose up -d --build
+```
+
+Isso sobe:
+- API (api-service)
+- PostgreSQL
+- Redis
+- RabbitMQ (com painel de management)
+- Elasticsearch
+- Kibana
+
+### 3. Verificar saúde da API
+
+```bash
+curl http://localhost:3001/health
+```
+
+### 4. Acompanhar logs da API
+
+```bash
+docker-compose logs -f api
+```
+
+### 5. Parar os serviços
+
+```bash
+docker-compose down
+```
+
+### 6. Parar e remover volumes (reset completo)
+
+```bash
+docker-compose down -v
 ```
 
 ## 📝 Scripts Disponíveis
@@ -94,10 +147,17 @@ npm start
 npm run dev          # Executa em modo desenvolvimento (hot reload)
 npm run build        # Compila TypeScript para JavaScript
 npm start            # Executa versão compilada
+npm run test         # Executa testes
+npm run test:cov     # Executa testes com coverage
 npm run lint         # Verifica código com ESLint
 npm run lint:fix     # Corrige automaticamente problemas do ESLint
 npm run format       # Formata código com Prettier
 npm run setup:ilm    # Configura ILM no Elasticsearch (retenção 7 dias)
+npm run docker:build # Build das imagens com docker-compose
+npm run docker:up    # Sobe stack Docker em background
+npm run docker:down  # Para stack Docker
+npm run docker:logs  # Logs da API no Docker
+npm run docker:clean # Para stack e remove volumes
 ```
 
 ## 📊 Monitoramento
@@ -158,6 +218,7 @@ traceId: "uuid-do-trace"
 ### Health Check
 ```
 GET /health
+GET /health/detailed
 ```
 
 ### Base
@@ -165,17 +226,12 @@ GET /health
 GET /
 ```
 
-> **Nota:** Endpoints de vídeos serão implementados nas próximas etapas.
-
-## 🏗️ Próximos Passos
-
-- [ ] Configurar Prisma e PostgreSQL
-- [ ] Implementar domínio (entidades e DTOs)
-- [ ] Criar use cases principais
-- [ ] Implementar integrações (S3, RabbitMQ, Redis)
-- [ ] Criar endpoints de vídeos
-- [ ] Implementar middleware de autenticação
-- [ ] Adicionar testes
+### Vídeos
+```
+GET  /videos           # Lista vídeos do cliente autenticado
+POST /videos/process   # Upload e processamento de vídeos
+POST /videos/callback  # Callback do Worker para atualização de status
+```
 
 ## 📚 Repositórios Relacionados
 
