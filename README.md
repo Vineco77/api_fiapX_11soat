@@ -53,7 +53,7 @@ src/
 └── server.ts            # Arquivo de entrada
 ```
 
-## 🚀 Como Executar
+## 🚀 Como Executar:
 
 ### 1. Clonar o repositório
 
